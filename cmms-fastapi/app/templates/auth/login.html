@@ -1,0 +1,95 @@
+{% extends "layouts/auth.html" %}
+{% block title %}Masuk{% endblock %}
+
+{% block auth_content %}
+<section class="card login-card">
+    <div class="login-card-body">
+        <div class="login-heading">
+            <span class="login-heading-icon" aria-hidden="true"><i class="ti-lock"></i></span>
+            <div>
+                <p class="login-eyebrow">Akses terbatas</p>
+                <h2>Masuk ke pusat operasi</h2>
+                <p>Gunakan akun terdaftar untuk melanjutkan ke CMMS Sentinel.</p>
+            </div>
+        </div>
+
+        {% if flashes %}
+            {% for flash in flashes %}
+                <div class="alert alert-{{ 'danger' if flash.tone == 'error' else flash.tone }} login-alert" role="alert">
+                    <i class="{{ 'ti-check-box' if flash.tone == 'success' else 'ti-alert' }}" aria-hidden="true"></i>
+                    <span>{{ flash.message }}</span>
+                </div>
+            {% endfor %}
+        {% endif %}
+        {% if error %}
+            <div class="alert alert-danger login-alert" role="alert">
+                <i class="ti-alert" aria-hidden="true"></i>
+                <span>{{ error }}</span>
+            </div>
+        {% endif %}
+
+        <form method="post" action="/login" novalidate class="login-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="next" value="{{ next_url }}">
+
+            <div class="form-group">
+                <label for="email">Email</label>
+                <div class="input-group login-input">
+                    <div class="input-group-prepend">
+                        <span class="input-group-text"><i class="ti-email" aria-hidden="true"></i></span>
+                    </div>
+                    <input type="email" name="email" id="email" class="form-control" value="{{ email }}"
+                           placeholder="nama@perusahaan.com" required autofocus autocomplete="username"
+                           inputmode="email" spellcheck="false">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <div class="input-group login-input">
+                    <div class="input-group-prepend">
+                        <span class="input-group-text"><i class="ti-lock" aria-hidden="true"></i></span>
+                    </div>
+                    <input type="password" name="password" id="password" class="form-control"
+                           placeholder="Masukkan password" required autocomplete="current-password">
+                    <div class="input-group-append">
+                        <button type="button" class="input-group-text password-toggle" data-toggle-password="#password"
+                                aria-label="Tampilkan password" aria-pressed="false">
+                            <i class="ti-eye" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block login-submit">
+                Masuk ke aplikasi <i class="ti-arrow-right" aria-hidden="true"></i>
+            </button>
+        </form>
+
+        {% if demo_accounts %}
+            <div class="login-demo">
+                <p class="login-demo-label"><i class="ti-info-alt" aria-hidden="true"></i> Akun demo lingkungan lokal</p>
+                {% for account in demo_accounts %}
+                    <div class="demo-row">
+                        <div class="demo-credentials">
+                            <span class="badge badge-soft-accent">{{ account.role }}</span>
+                            <code>{{ account.email }}</code>
+                            <span class="demo-slash">/</span>
+                            <code>{{ account.password }}</code>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary demo-fill"
+                                data-demo-fill data-email="{{ account.email }}" data-password="{{ account.password }}">
+                            Gunakan
+                        </button>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <p class="login-legal">
+            <i class="ti-shield" aria-hidden="true"></i>
+            Sesi aman dengan CSRF protection, pembatasan percobaan login, dan jejak audit aktivitas.
+        </p>
+    </div>
+</section>
+{% endblock %}

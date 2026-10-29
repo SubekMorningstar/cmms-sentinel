@@ -1,0 +1,39 @@
+{% extends "layouts/app.html" %}
+{% block title %}Persediaan Suku Cadang{% endblock %}
+{% block page_description %}
+    <p class="page-description">Pantau stok minimum dan catat pemakaian suku cadang dari work order.</p>
+{% endblock %}
+{% block content %}
+{% set low_count = items|selectattr('low_stock')|list|length %}
+{% if low_count %}<div class="wo-priority-banner is-overdue"><strong>{{ low_count }} suku cadang di bawah stok minimum.</strong> Periksa ketersediaan sebelum pekerjaan dijadwalkan.</div>{% endif %}
+<section class="card">
+    <div class="card-body">
+        <div class="section-head"><div><h2>Stok saat ini</h2><p>{{ items|length }} jenis suku cadang aktif</p></div></div>
+        <div class="table-wrap"><table class="table">
+            <thead><tr><th>Kode</th><th>Suku cadang</th><th class="text-right">Stok</th><th class="text-right">Minimum</th><th>Status</th>{% if is_admin %}<th>Penyesuaian</th>{% endif %}</tr></thead>
+            <tbody>{% for item in items %}
+                <tr>
+                    <td>{{ item.part_code }}</td><td>{{ item.name }}</td>
+                    <td class="text-right">{{ item.on_hand }} {{ item.unit }}</td><td class="text-right">{{ item.minimum }} {{ item.unit }}</td>
+                    <td>{{ 'Perlu restok' if item.low_stock else 'Tersedia' }}</td>
+                    {% if is_admin %}<td><form method="post" action="/inventory/items/{{ item._id }}/adjust" class="d-flex"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><label class="sr-only" for="adjust-{{ item._id }}">Tambah atau kurangi stok</label><input class="form-control" id="adjust-{{ item._id }}" type="number" name="change" min="-100000" max="100000" value="1" required><button class="btn btn-outline-secondary btn-sm ml-2" type="submit">Sesuaikan</button></form></td>{% endif %}
+                </tr>
+            {% else %}<tr><td colspan="{{ 6 if is_admin else 5 }}">Belum ada suku cadang dalam persediaan.</td></tr>{% endfor %}</tbody>
+        </table></div>
+    </div>
+</section>
+{% if is_admin %}
+<section class="card mt-3"><div class="card-body">
+    <h2>Tambah suku cadang</h2>
+    <form method="post" action="/inventory/items" class="form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="form-group"><label for="part-code">Kode</label><input class="form-control" id="part-code" name="part_code" required minlength="2" maxlength="30"></div>
+        <div class="form-group"><label for="part-name">Nama</label><input class="form-control" id="part-name" name="name" required minlength="2" maxlength="120"></div>
+        <div class="form-group"><label for="part-unit">Satuan</label><input class="form-control" id="part-unit" name="unit" value="pcs" required maxlength="20"></div>
+        <div class="form-group"><label for="part-stock">Stok awal</label><input class="form-control" id="part-stock" type="number" name="on_hand" min="0" value="0" required></div>
+        <div class="form-group"><label for="part-min">Stok minimum</label><input class="form-control" id="part-min" type="number" name="minimum" min="0" value="0" required></div>
+        <div class="form-group align-self-end"><button class="btn btn-primary" type="submit">Tambah</button></div>
+    </form>
+</div></section>
+{% endif %}
+{% endblock %}

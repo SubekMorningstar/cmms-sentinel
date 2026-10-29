@@ -1,0 +1,121 @@
+{% extends "layouts/app.html" %}
+{% block title %}Manajemen Pengguna{% endblock %}
+
+{% block page_description %}
+    <p class="page-description">Kelola akses administrator dan teknisi, penugasan aktif, serta status akun.</p>
+{% endblock %}
+
+{% block page_actions %}
+    <a href="/users/new" class="btn btn-primary btn-sm"><i class="ti-plus" aria-hidden="true"></i> Pengguna baru</a>
+    <a href="/admin/audit" class="btn btn-quiet btn-sm"><i class="ti-files" aria-hidden="true"></i> Audit trail</a>
+{% endblock %}
+
+{% block content %}
+<section class="summary-grid" aria-label="Ringkasan pengguna">
+    <article class="summary-card is-accent">
+        <span class="summary-icon"><i class="ti-user" aria-hidden="true"></i></span>
+        <div class="summary-copy"><strong>{{ summary.total }}</strong><span>Total pengguna</span></div>
+    </article>
+    <article class="summary-card is-good">
+        <span class="summary-icon"><i class="ti-shield" aria-hidden="true"></i></span>
+        <div class="summary-copy"><strong>{{ summary.admins }}</strong><span>Administrator</span></div>
+    </article>
+    <article class="summary-card is-accent">
+        <span class="summary-icon"><i class="ti-settings" aria-hidden="true"></i></span>
+        <div class="summary-copy"><strong>{{ summary.technicians }}</strong><span>Teknisi aktif</span></div>
+    </article>
+    <article class="summary-card {{ 'is-warning' if summary.inactive else '' }}">
+        <span class="summary-icon"><i class="ti-user" aria-hidden="true"></i></span>
+        <div class="summary-copy"><strong>{{ summary.inactive }}</strong><span>Akun nonaktif</span></div>
+    </article>
+    <article class="summary-card is-accent">
+        <span class="summary-icon"><i class="ti-clipboard" aria-hidden="true"></i></span>
+        <div class="summary-copy"><strong>{{ items|sum(attribute='open_assignments') }}</strong><span>Penugasan aktif</span></div>
+    </article>
+</section>
+
+<section class="filter-bar" aria-label="Filter pengguna">
+    <form method="get" action="/users" class="filter-form">
+        <div class="filter-field filter-grow">
+            <label for="user-q">Cari pengguna</label>
+            <div class="search-field">
+                <i class="ti-search" aria-hidden="true"></i>
+                <input type="search" class="form-control" id="user-q" name="q" value="{{ filters.q }}"
+                       placeholder="Nama atau email" maxlength="80">
+            </div>
+        </div>
+        <div class="filter-field filter-compact">
+            <label for="user-role">Peran</label>
+            <select class="form-control" id="user-role" name="role">
+                <option value="">Semua peran</option>
+                {% for key, label in status_maps.role.items() %}
+                    <option value="{{ key }}" {{ 'selected' if filters.role == key else '' }}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-field filter-compact">
+            <label for="user-active">Status</label>
+            <select class="form-control" id="user-active" name="active">
+                <option value="">Semua status</option>
+                <option value="1" {{ 'selected' if filters.active == '1' else '' }}>Aktif</option>
+                <option value="0" {{ 'selected' if filters.active == '0' else '' }}>Nonaktif</option>
+            </select>
+        </div>
+        <div class="filter-actions">
+            <button type="submit" class="btn btn-primary btn-sm"><i class="ti-filter" aria-hidden="true"></i> Filter</button>
+            <a href="/users" class="btn btn-quiet btn-sm">Reset</a>
+        </div>
+    </form>
+    <div class="filter-summary">
+        <span><strong>{{ items|length }}</strong> pengguna ditampilkan</span>
+        <span class="muted">Hanya administrator yang dapat mengubah akun.</span>
+    </div>
+</section>
+
+<section class="user-grid" aria-label="Daftar pengguna">
+    {% for account in items %}
+        <article class="user-card {{ 'is-inactive' if not account.active else '' }}">
+            <div class="user-card-head">
+                <span class="user-avatar">{{ account.initials }}</span>
+                <div class="user-identity">
+                    <h3><a href="/users/{{ account.id }}/edit">{{ account.nama_lengkap }}</a></h3>
+                    <p><i class="ti-email" aria-hidden="true"></i> {{ account.email }}</p>
+                    <div class="user-badges">
+                        <span class="badge badge-soft-{{ 'accent' if account.role == 'admin' else 'info' }}">{{ account.role_label }}</span>
+                        <span class="state-pill is-{{ 'resolved' if account.active else 'cancelled' }}">{{ 'Aktif' if account.active else 'Nonaktif' }}</span>
+                        {% if account.id == current_user.id %}<span class="badge badge-soft-warning">Akun Anda</span>{% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="user-stats">
+                <div class="user-stat">
+                    <strong>{{ account.open_assignments }}</strong>
+                    <span>Tugas aktif</span>
+                </div>
+                <div class="user-stat">
+                    <strong>{{ account.last_login_at|date_only if account.last_login_at else '—' }}</strong>
+                    <span>Login terakhir</span>
+                </div>
+                <div class="user-stat">
+                    <strong>{{ account.created_at|date_only }}</strong>
+                    <span>Bergabung</span>
+                </div>
+            </div>
+            <div class="user-card-foot">
+                <span><i class="ti-time" aria-hidden="true"></i> Diperbarui {{ account.updated_at|relative if account.updated_at else '—' }}</span>
+                <a href="/users/{{ account.id }}/edit" class="btn btn-quiet btn-sm"><i class="ti-pencil" aria-hidden="true"></i> Kelola</a>
+            </div>
+        </article>
+    {% else %}
+        <div class="empty-state" style="grid-column: 1 / -1;">
+            <span class="empty-icon"><i class="ti-user" aria-hidden="true"></i></span>
+            <h3>Tidak ada pengguna</h3>
+            <p>Belum ada akun yang sesuai filter. Ubah kriteria pencarian atau tambahkan pengguna baru.</p>
+            <div class="empty-actions">
+                <a href="/users/new" class="btn btn-primary btn-sm"><i class="ti-plus" aria-hidden="true"></i> Tambah pengguna</a>
+                <a href="/users" class="btn btn-outline-secondary btn-sm">Reset filter</a>
+            </div>
+        </div>
+    {% endfor %}
+</section>
+{% endblock %}

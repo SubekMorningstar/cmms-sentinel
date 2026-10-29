@@ -1,0 +1,179 @@
+{% extends "layouts/app.html" %}
+{% block title %}{{ 'Tambah aset' if mode == 'new' else 'Edit ' ~ machine.name }}{% endblock %}
+
+{% block page_description %}
+    <p class="page-description">
+        {{ 'Daftarkan mesin produksi baru beserta threshold awal otomatis.' if mode == 'new' else 'Perbarui data master, status operasional, dan spesifikasi teknis mesin.' }}
+    </p>
+{% endblock %}
+
+{% block page_actions %}
+    <a href="{{ '/assets' if mode == 'new' else '/assets/' ~ machine._id }}" class="btn btn-quiet btn-sm">
+        <i class="ti-arrow-left" aria-hidden="true"></i> Kembali
+    </a>
+{% endblock %}
+
+{% block content %}
+<div class="split-8-4">
+    <section class="card form-card">
+        <div class="card-body">
+            {% if error %}
+                <div class="form-error-banner" role="alert">
+                    <i class="ti-alert" aria-hidden="true"></i>
+                    <span>{{ error }}</span>
+                </div>
+            {% endif %}
+
+            <form method="post" action="{{ '/assets' if mode == 'new' else '/assets/' ~ machine._id }}" data-submit-once>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                <div class="form-section">
+                    <div class="form-section-head">
+                        <span class="form-section-icon"><i class="ti-harddrives" aria-hidden="true"></i></span>
+                        <div>
+                            <h2>Identitas mesin</h2>
+                            <p>Kode dan nama digunakan pada seluruh telemetry dan work order.</p>
+                        </div>
+                    </div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="code">Kode mesin <span class="required-mark">*</span></label>
+                            {% if mode == 'new' %}
+                                <input type="text" class="form-control" id="code" name="code" value="{{ form.code }}"
+                                       required minlength="3" maxlength="20" pattern="[A-Z0-9][A-Z0-9-]{2,19}"
+                                       placeholder="Contoh: CNC-01" autocapitalize="characters" spellcheck="false">
+                            {% else %}
+                                <input type="text" class="form-control" id="code" value="{{ form.code }}" readonly>
+                                <input type="hidden" name="code" value="{{ form.code }}">
+                            {% endif %}
+                            <p class="field-hint">3–20 karakter: huruf kapital, angka, atau tanda hubung.</p>
+                        </div>
+                        <div class="form-group">
+                            <label for="name">Nama mesin <span class="required-mark">*</span></label>
+                            <input type="text" class="form-control" id="name" name="name" value="{{ form.name }}"
+                                   required minlength="2" maxlength="100" placeholder="Contoh: CNC Milling 01">
+                        </div>
+                        <div class="form-group">
+                            <label for="asset_type">Tipe aset <span class="required-mark">*</span></label>
+                            <input type="text" class="form-control" id="asset_type" name="asset_type" value="{{ form.asset_type }}"
+                                   required minlength="2" maxlength="80" placeholder="Contoh: CNC Milling">
+                        </div>
+                        <div class="form-group">
+                            <label for="location">Lokasi <span class="required-mark">*</span></label>
+                            <input type="text" class="form-control" id="location" name="location" value="{{ form.location }}"
+                                   required minlength="2" maxlength="100" placeholder="Contoh: Gedung A · Line 1">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="form-section-head">
+                        <span class="form-section-icon"><i class="ti-info-alt" aria-hidden="true"></i></span>
+                        <div>
+                            <h2>Spesifikasi teknis</h2>
+                            <p>Data manufaktur untuk penelusuran dan perencanaan pemeliharaan.</p>
+                        </div>
+                    </div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="manufacturer">Produsen</label>
+                            <input type="text" class="form-control" id="manufacturer" name="manufacturer" value="{{ form.manufacturer }}" maxlength="100">
+                        </div>
+                        <div class="form-group">
+                            <label for="model">Model</label>
+                            <input type="text" class="form-control" id="model" name="model" value="{{ form.model }}" maxlength="100">
+                        </div>
+                        <div class="form-group">
+                            <label for="serial_number">Nomor seri</label>
+                            <input type="text" class="form-control" id="serial_number" name="serial_number" value="{{ form.serial_number }}" maxlength="100" spellcheck="false">
+                        </div>
+                        <div class="form-group">
+                            <label for="installed_at">Tanggal instalasi</label>
+                            <input type="date" class="form-control" id="installed_at" name="installed_at" value="{{ form.installed_at }}">
+                        </div>
+                        <div class="form-group">
+                            <label for="rated_power_kw">Daya terpasang (kW)</label>
+                            <input type="number" class="form-control" id="rated_power_kw" name="rated_power_kw" value="{{ form.rated_power_kw }}"
+                                   min="0.1" max="1000" step="0.1" inputmode="decimal">
+                            <p class="field-hint">Dipakai sebagai dasar threshold awal daya.</p>
+                        </div>
+                        <div class="form-group">
+                            <label for="rated_speed_rpm">Kecepatan nominal (rpm)</label>
+                            <input type="number" class="form-control" id="rated_speed_rpm" name="rated_speed_rpm" value="{{ form.rated_speed_rpm }}"
+                                   min="1" max="100000" step="1" inputmode="numeric">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="form-section-head">
+                        <span class="form-section-icon"><i class="ti-settings" aria-hidden="true"></i></span>
+                        <div>
+                            <h2>Status &amp; klasifikasi</h2>
+                            <p>Menentukan prioritas pemantauan dan alur eskalasi alert.</p>
+                        </div>
+                    </div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="criticality">Tingkat kekritisan <span class="required-mark">*</span></label>
+                            <select class="form-control" id="criticality" name="criticality" required>
+                                {% for key, label in status_maps.criticality.items() %}
+                                    <option value="{{ key }}" {{ 'selected' if form.criticality == key else '' }}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="operational_status">Status operasional <span class="required-mark">*</span></label>
+                            <select class="form-control" id="operational_status" name="operational_status" required>
+                                {% for key, label in status_maps.machine_status.items() if key != 'retired' %}
+                                    <option value="{{ key }}" {{ 'selected' if form.operational_status == key else '' }}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group form-group-full">
+                            <label for="notes">Catatan teknis</label>
+                            <textarea class="form-control" id="notes" name="notes" rows="3" maxlength="500"
+                                      placeholder="Kondisi khusus, akses area, atau instruksi keselamatan.">{{ form.notes }}</textarea>
+                            <p class="field-hint">Maksimal 500 karakter.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="ti-save" aria-hidden="true"></i> {{ 'Simpan aset' if mode == 'new' else 'Simpan perubahan' }}
+                    </button>
+                    <a href="{{ '/assets' if mode == 'new' else '/assets/' ~ machine._id }}" class="btn btn-quiet">Batal</a>
+                    <span class="form-actions-note">Perubahan dicatat pada audit trail.</span>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <aside class="form-side">
+        <section class="card form-side-card">
+            <div class="card-body">
+                <h2 class="eyebrow">Panduan aset</h2>
+                <ul class="form-side-list">
+                    <li><i class="ti-check-box" aria-hidden="true"></i><span><strong>Kode unik.</strong> Gunakan format area-fungsi-nomor, misalnya CNC-01.</span></li>
+                    <li><i class="ti-check-box" aria-hidden="true"></i><span><strong>Threshold awal.</strong> Sistem membuat ambang batas default sesuai tipe dan daya terpasang.</span></li>
+                    <li><i class="ti-check-box" aria-hidden="true"></i><span><strong>Status arsip.</strong> Aset diarsipkan dari halaman detail, bukan dihapus permanen.</span></li>
+                    <li><i class="ti-shield" aria-hidden="true"></i><span><strong>Jejak audit.</strong> Setiap perubahan data mesin tercatat dengan aktor dan waktu.</span></li>
+                </ul>
+            </div>
+        </section>
+        {% if mode == 'new' %}
+            <section class="card form-side-card">
+                <div class="card-body">
+                    <h2 class="eyebrow">Setelah dibuat</h2>
+                    <ol class="form-side-list">
+                        <li><span><strong>1.</strong> Sesuaikan threshold sensor pada menu Threshold Sensor.</span></li>
+                        <li><span><strong>2.</strong> Hubungkan gateway ke endpoint API ingest dengan kode mesin.</span></li>
+                        <li><span><strong>3.</strong> Pantau telemetry dan alert otomatis pada Condition Monitoring.</span></li>
+                    </ol>
+                </div>
+            </section>
+        {% endif %}
+    </aside>
+</div>
+{% endblock %}

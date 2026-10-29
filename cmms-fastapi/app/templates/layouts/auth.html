@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="CMMS Sentinel — pusat kendali pemeliharaan berbasis kondisi.">
+    <meta name="theme-color" content="#e3edff">
+    <title>{% block title %}Masuk{% endblock %} · {{ app_name }}</title>
+    <link rel="icon" type="image/png" sizes="96x96" href="/static/theme/img/favicon.png">
+    <link rel="stylesheet" href="/static/theme/css/siqtheme.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/css/app.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/css/cmms.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/css/glass-v3.css?v={{ app_version }}">
+</head>
+<body class="login-page theme-glass">
+
+    <main class="login-wrapper">
+        <div class="login-shell">
+            <section class="login-showcase" aria-label="Tentang CMMS Sentinel">
+                <div class="showcase-top">
+                    <a href="/login" class="showcase-brand" aria-label="CMMS Sentinel">
+                        <span class="brand-mark brand-mark-lg" aria-hidden="true"><i class="ti-pulse"></i></span>
+                        <span><span class="text-carolina">CMMS</span> <span class="showcase-brand-name">Sentinel</span></span>
+                    </a>
+                    <span class="showcase-chip"><span class="status-dot" aria-hidden="true"></span> Operations Console</span>
+                </div>
+
+                <div class="showcase-copy">
+                    <p class="showcase-kicker">Condition-Based Monitoring</p>
+                    <h1>Kendalikan kesehatan aset sebelum gangguan menghentikan produksi.</h1>
+                    <p class="showcase-lead">
+                        Pantau suhu, getaran, daya, dan kebisingan mesin dalam satu pusat operasi.
+                        Alert otomatis dan work order menjaga tim bergerak pada prioritas yang tepat.
+                    </p>
+                    <ul class="showcase-features">
+                        <li><span><i class="ti-pulse" aria-hidden="true"></i></span><div><strong>Monitoring 4 kanal</strong><small>Suhu, getaran, daya, dan suara secara berkelanjutan.</small></div></li>
+                        <li><span><i class="ti-bell" aria-hidden="true"></i></span><div><strong>Alert berjenjang</strong><small>Ambang peringatan dan kritis dengan pemulihan otomatis.</small></div></li>
+                        <li><span><i class="ti-clipboard" aria-hidden="true"></i></span><div><strong>Work order terpadu</strong><small>Penugasan, progres, downtime, dan jejak audit dalam satu alur.</small></div></li>
+                    </ul>
+                </div>
+
+                <div class="showcase-footer">
+                    <div class="showcase-wave" aria-hidden="true">
+                        <span style="--h: 24%"></span><span style="--h: 48%"></span><span style="--h: 68%"></span><span style="--h: 36%"></span><span style="--h: 82%"></span><span style="--h: 56%"></span><span style="--h: 30%"></span><span style="--h: 64%"></span><span style="--h: 44%"></span><span style="--h: 22%"></span><span style="--h: 50%"></span><span style="--h: 34%"></span>
+                    </div>
+                    <p>Dirancang mengikuti praktik pemeliharaan industri: ISO 10816-3, IEC 60034-1, dan OSHA 1910.95.</p>
+                </div>
+            </section>
+
+            {% block auth_content %}{% endblock %}
+        </div>
+
+        <div class="login-page-foot">
+            <span>{{ app_name }} · v{{ app_version }}</span>
+        </div>
+    </main>
+
+    <script src="/static/theme/scripts/siqtheme.js?v={{ app_version }}"></script>
+    <script src="/static/js/app.js?v={{ app_version }}"></script>
+    <script src="/static/js/cmms.js?v={{ app_version }}"></script>
+</body>
+</html>

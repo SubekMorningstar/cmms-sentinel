@@ -1,0 +1,436 @@
+{% extends "layouts/app.html" %}
+{% block title %}Pusat Operasi{% endblock %}
+
+{% block page_actions %}
+    <a href="/cbm-monitoring" class="btn btn-outline-secondary btn-sm">
+        <i class="ti-pulse" aria-hidden="true"></i> Live monitoring
+    </a>
+    <a href="/work-orders/new" class="btn btn-primary btn-sm">
+        <i class="ti-plus" aria-hidden="true"></i> Work order baru
+    </a>
+{% endblock %}
+
+{% block content %}
+<script type="application/json" data-chart-data="page" nonce="{{ csp_nonce }}">{{ chart_json|safe }}</script>
+
+<section class="hero-panel" aria-labelledby="hero-title">
+    <div class="hero-main">
+        <p class="hero-kicker"><i class="ti-pulse" aria-hidden="true"></i> Pusat operasi · {{ today_label }}</p>
+        <h2 class="hero-title" id="hero-title">
+            {{ kpis.machines }} mesin terpantau, {{ kpis.online }} mengirim telemetry.
+        </h2>
+        <p class="hero-copy">
+            {% if kpis.critical_alerts %}
+                {{ kpis.critical_alerts }} alert kritis aktif.
+            {% elif kpis.active_alerts %}
+                {{ kpis.active_alerts }} alert aktif.
+            {% else %}
+                Tidak ada alert aktif.
+            {% endif %}
+        </p>
+        <div class="hero-meta">
+            <span><i class="ti-time" aria-hidden="true"></i> {{ shift }}</span>
+            <span><i class="ti-harddrives" aria-hidden="true"></i> {{ kpis.period_days }} hari analitik</span>
+            <span><i class="ti-server" aria-hidden="true"></i> {{ kpis.points_24h|intnum }} pembacaan 24 jam</span>
+            <span><i class="ti-bell" aria-hidden="true"></i> {{ kpis.resolved_alerts_24h }} alert selesai · 24 jam</span>
+        </div>
+    </div>
+    <div class="hero-side">
+        <div class="health-ring ring-lg is-{{ kpis.health.key }}" style="--ring-value: {{ kpis.avg_health or 0 }};"
+             aria-label="Skor kesehatan armada {{ kpis.avg_health|num(1) }} dari 100">
+            <span class="ring-score">{{ kpis.avg_health|num(1) }}</span>
+            <span class="ring-caption">Fleet health</span>
+        </div>
+        <div class="hero-actions">
+            <a href="/reports" class="btn btn-soft btn-sm"><i class="ti-bar-chart" aria-hidden="true"></i> Analitik</a>
+            <a href="/alerts" class="btn btn-quiet btn-sm"><i class="ti-bell" aria-hidden="true"></i> Alert center</a>
+        </div>
+    </div>
+</section>
+
+<section class="kpi-grid kpi-grid-5" aria-label="Indikator utama pemeliharaan">
+    <a href="/assets" class="kpi-card kpi-accent">
+        <div class="kpi-top">
+            <span class="kpi-label">Kesehatan armada</span>
+            <span class="kpi-icon"><i class="ti-heart" aria-hidden="true"></i></span>
+        </div>
+        <div class="kpi-value">{{ kpis.avg_health|num(1) }}<small>/100</small></div>
+        <div class="kpi-foot">
+            <span class="state-pill is-{{ kpis.health.key }}">{{ kpis.health.label }}</span>
+            <span>{{ kpis.states.good }} mesin baik</span>
+        </div>
+    </a>
+
+    <a href="/alerts?status=active" class="kpi-card {{ 'kpi-danger' if kpis.critical_alerts else 'kpi-warning' }}">
+        <div class="kpi-top">
+            <span class="kpi-label">Alert aktif</span>
+            <span class="kpi-icon"><i class="ti-bell" aria-hidden="true"></i></span>
+        </div>
+        <div class="kpi-value">{{ kpis.active_alerts }}</div>
+        <div class="kpi-foot">
+            <span class="kpi-trend is-down"><i class="ti-alert" aria-hidden="true"></i> {{ kpis.critical_alerts }} kritis</span>
+            <span>{{ kpis.resolved_alerts_24h }} selesai 24 jam</span>
+        </div>
+    </a>
+
+    <a href="/work-orders?status=active" class="kpi-card kpi-info">
+        <div class="kpi-top">
+            <span class="kpi-label">Work order aktif</span>
+            <span class="kpi-icon"><i class="ti-clipboard" aria-hidden="true"></i></span>
+        </div>
+        <div class="kpi-value">{{ kpis.open_wos }}</div>
+        <div class="kpi-foot">
+            <span class="kpi-trend {{ 'is-down' if kpis.overdue_wos else 'is-flat' }}">
+                <i class="ti-timer" aria-hidden="true"></i> {{ kpis.overdue_wos }} melewati tenggat
+            </span>
+        </div>
+    </a>
+
+    <a href="/reports" class="kpi-card kpi-good">
+        <div class="kpi-top">
+            <span class="kpi-label">Ketersediaan</span>
+            <span class="kpi-icon"><i class="ti-pie-chart" aria-hidden="true"></i></span>
+        </div>
+        <div class="kpi-value">{{ kpis.availability|num(2) }}<small>%</small></div>
+        <div class="kpi-foot">
+            <span>{{ kpis.machines }} mesin · {{ kpis.period_days }} hari</span>
+        </div>
+    </a>
+
+    <a href="/reports" class="kpi-card kpi-warning">
+        <div class="kpi-top">
+            <span class="kpi-label">MTTR korektif</span>
+            <span class="kpi-icon"><i class="ti-time" aria-hidden="true"></i></span>
+        </div>
+        <div class="kpi-value">{{ kpis.mttr|num(1) }}<small>menit</small></div>
+        <div class="kpi-foot">
+            <span>Rata-rata waktu perbaikan</span>
+        </div>
+    </a>
+</section>
+
+<div class="split-8-4">
+    <section class="card" aria-labelledby="team-load-title">
+        <div class="card-body">
+            <div class="section-head"><div><h2 id="team-load-title">Beban teknisi</h2></div><a href="/schedule" class="btn btn-quiet btn-sm">Jadwal tim</a></div>
+            <div class="table-wrap"><table class="table">
+                <thead><tr><th>Teknisi</th><th class="text-right">WO aktif</th><th class="text-right">Terlambat</th><th></th></tr></thead>
+                <tbody>{% for tech in technicians %}
+                    <tr><td>{{ tech.nama_lengkap }}</td><td class="text-right">{{ tech.open_count }}</td><td class="text-right">{{ tech.overdue_count }}</td><td><a href="/schedule">Jadwal</a></td></tr>
+                {% else %}<tr><td colspan="4">Belum ada teknisi aktif.</td></tr>{% endfor %}</tbody>
+            </table></div>
+        </div>
+    </section>
+    <section class="card" aria-labelledby="action-queue-title">
+        <div class="card-body">
+            <div class="section-head"><div><h2 id="action-queue-title">Perlu ditinjau</h2><p>{{ admin_overdue }} work order melewati tenggat · {{ review_orders|length }} menunggu tinjauan terbaru</p></div></div>
+            {% for wo in review_orders %}
+                <div class="feed-item"><div class="feed-body"><p class="feed-title"><a href="/work-orders/{{ wo._id }}">{{ wo.code }} · {{ wo.title }}</a></p><div class="feed-meta">{{ wo.machine_code }} · {{ wo.assigned_name or 'Belum ditugaskan' }} · dikirim {{ wo.submitted_at|dt }}</div></div></div>
+            {% else %}<div class="feed-empty">Tidak ada pekerjaan yang menunggu tinjauan.</div>{% endfor %}
+            <a href="/work-orders?status=review" class="btn btn-quiet btn-sm mt-2">Buka antrean tinjauan</a>
+            <a href="/work-orders?status=overdue" class="btn btn-quiet btn-sm mt-2">Lihat keterlambatan</a>
+        </div>
+    </section>
+</div>
+<section class="card mt-3" aria-labelledby="machine-status-title">
+    <div class="card-body">
+        <div class="section-head"><div><h2 id="machine-status-title">Status mesin</h2></div><a href="/assets" class="btn btn-quiet btn-sm">Semua aset</a></div>
+        <div class="table-wrap"><table class="table">
+            <thead><tr><th>Aset</th><th>Telemetry</th><th>Kondisi</th><th>Skenario</th><th>Sumber</th></tr></thead>
+            <tbody>{% for machine in machine_states %}
+                <tr><td><a href="/assets/{{ machine.id }}">{{ machine.code }} · {{ machine.name }}</a></td><td>{{ 'Online' if machine.online else 'Offline' }}</td><td>{{ machine.health.label }}</td><td>{{ machine.scenario_label or 'Tidak ada skenario aktif' }}</td><td>{{ 'Data simulasi' if machine.is_synthetic else 'Gateway / sumber lain' }}</td></tr>
+            {% else %}<tr><td colspan="5">Belum ada mesin terpantau.</td></tr>{% endfor %}</tbody>
+        </table></div>
+    </div>
+</section>
+
+<div class="split-8-4">
+    <section class="card chart-card" aria-labelledby="trend-title">
+        <div class="card-body">
+            <div class="chart-toolbar">
+                <div class="chart-panel-head">
+                    <h2 id="trend-title">Tren suhu, getaran, daya &amp; suara</h2>
+                    <p id="trend-scale-note">
+                        {{ trend_source_label }} · {{ trend_range_start|dt }}–{{ trend_range_end|dt }} · Rata-rata per 15 menit.
+                    </p>
+                    {% if chart_data_sources.trend %}<span class="source-tag">Data simulasi</span>{% endif %}
+                </div>
+                <div class="chart-legend" aria-hidden="true">
+                    <span><i class="legend-dot" style="background: var(--sensor-temperature);"></i> Suhu (°C)</span>
+                    <span><i class="legend-dot" style="background: var(--sensor-vibration);"></i> Getaran (mm/s)</span>
+                    <span><i class="legend-dot" style="background: var(--sensor-power);"></i> Daya (kW)</span>
+                    <span><i class="legend-dot" style="background: var(--sensor-sound);"></i> Suara (dB(A))</span>
+                </div>
+            </div>
+            <div class="chart-box chart-lg" data-chart="dashboard-trend" data-height="300"
+                 role="img" aria-labelledby="trend-title" aria-describedby="trend-scale-note"></div>
+        </div>
+    </section>
+
+    <section class="card" aria-labelledby="health-dist-title">
+        <div class="card-body">
+            <div class="section-head">
+                <div>
+                    <h2 id="health-dist-title">Distribusi kondisi</h2>
+                    {% if chart_data_sources.health %}<span class="source-tag">Data simulasi</span>{% endif %}
+                </div>
+                <a href="/assets" class="btn btn-quiet btn-sm">Aset <i class="ti-angle-right" aria-hidden="true"></i></a>
+            </div>
+            {% set total_machines = kpis.machines if kpis.machines else 1 %}
+            <div class="health-hero">
+                <div class="health-ring is-{{ kpis.health.key }}" style="--ring-value: {{ kpis.avg_health or 0 }};">
+                    <span class="ring-score">{{ kpis.avg_health|num(1) }}</span>
+                    <span class="ring-caption">Rata-rata</span>
+                </div>
+                <div class="health-hero-copy">
+                    <h3>{{ kpis.health.label }}</h3>
+                    <p>{{ kpis.online }} dari {{ kpis.machines }} mesin online dalam 15 menit terakhir.</p>
+                </div>
+            </div>
+            <div class="health-distribution">
+                {% set dist = [
+                    ('good', 'Baik', kpis.states.good, 'ti-check-box'),
+                    ('warning', 'Perhatian', kpis.states.warning, 'ti-alert'),
+                    ('critical', 'Kritis', kpis.states.critical, 'ti-close'),
+                    ('unknown', 'Tanpa data', kpis.states.unknown, 'ti-help')
+                ] %}
+                {% for key, label, count, icon in dist %}
+                    <div class="health-dist-row is-{{ key }}">
+                        <span class="health-dist-label"><i class="{{ icon }}" aria-hidden="true"></i> {{ label }}</span>
+                        <span class="health-dist-value">{{ count }}</span>
+                        <div class="health-dist-track" aria-hidden="true">
+                            <span class="health-dist-fill" style="width: {{ (count / total_machines * 100)|round(1) }}%;"></span>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+            <div class="stat-strip stat-strip-2">
+                <div class="stat-cell">
+                    <span class="stat-label">Online</span>
+                    <span class="stat-value">{{ kpis.online }}<small>/{{ kpis.machines }}</small></span>
+                </div>
+                <div class="stat-cell">
+                    <span class="stat-label">Backlog WO</span>
+                    <span class="stat-value">{{ kpis.open_wos }}</span>
+                </div>
+                <div class="stat-cell">
+                    <span class="stat-label">Titik data</span>
+                    <span class="stat-value">{{ kpis.points_24h|intnum }}</span>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+
+<div class="grid-2">
+    <section class="card chart-card" aria-labelledby="alert-mix-title">
+        <div class="card-body">
+            <div class="chart-panel-head">
+                <h2 id="alert-mix-title">Komposisi alert per sensor</h2>
+                <p>Peringatan dan kekritisan yang masih terbuka.</p>
+                {% if chart_data_sources.alerts %}<span class="source-tag">Data simulasi</span>{% endif %}
+            </div>
+            <div class="chart-box chart-md" data-chart="alert-mix" data-height="230"
+                 role="img" aria-label="Grafik komposisi alert per sensor"></div>
+        </div>
+    </section>
+
+    <section class="card chart-card" aria-labelledby="wo-mix-title">
+        <div class="card-body">
+            <div class="chart-toolbar">
+                <div class="chart-panel-head">
+                    <h2 id="wo-mix-title">Status work order</h2>
+                    {% if chart_data_sources.work_orders %}<span class="source-tag">Data simulasi</span>{% endif %}
+                </div>
+                <a href="/work-orders?status=all" class="btn btn-quiet btn-sm">Semua WO</a>
+            </div>
+            <div class="chart-box chart-md" data-chart="wo-mix" data-height="230"
+                 role="img" aria-label="Grafik status work order"></div>
+        </div>
+    </section>
+</div>
+
+<div class="split-7-5 dashboard-alerts-row">
+    <section class="card" aria-labelledby="alert-feed-title">
+        <div class="card-body">
+            <div class="section-head">
+                <div>
+                    <h2 id="alert-feed-title">Peringatan terbaru</h2>
+                </div>
+                <a href="/alerts" class="btn btn-quiet btn-sm">Pusat alert <i class="ti-angle-right" aria-hidden="true"></i></a>
+            </div>
+            <div class="feed-list">
+                {% for alert in alerts %}
+                    <div class="feed-item">
+                        <span class="feed-icon {{ 'is-danger' if alert.level == 'critical' else 'is-warning' }}">
+                            <i class="fa {{ 'fa-exclamation-circle' if alert.level == 'critical' else 'fa-exclamation-triangle' }}" aria-hidden="true"></i>
+                        </span>
+                        <div class="feed-body">
+                            <p class="feed-title">
+                                <a href="/alerts/{{ alert.id }}">
+                                    {{ alert.machine_code }} · {{ sensors[alert.sensor].label if alert.sensor in sensors else alert.sensor }}
+                                </a>
+                                <span class="level-tag {{ alert.level }}">{{ status_maps.alert_level.get(alert.level, alert.level) }}</span>
+                                {% if alert.source in ['simulator', 'dataset-seed'] %}<span class="source-tag">Data simulasi</span>{% elif alert.source %}<span class="source-tag">{{ status_maps.source.get(alert.source, alert.source) }}</span>{% endif %}
+                                {% if alert.scenario_id %}<span class="badge badge-soft-info">{{ alert.scenario_id|replace('-', ' ') }}</span>{% endif %}
+                            </p>
+                            <div class="feed-meta">
+                                <span>{{ alert.message }}</span>
+                                <span>{{ alert.value|num(1) }} {{ alert.unit }}</span>
+                                <span>{{ alert.machine_name }}</span>
+                            </div>
+                        </div>
+                        <time class="feed-time" datetime="{{ alert.last_seen.isoformat() if alert.last_seen else '' }}">{{ alert.last_seen|relative }}</time>
+                    </div>
+                {% else %}
+                    <div class="feed-empty">
+                        <i class="ti-check-box" aria-hidden="true"></i>
+                        Tidak ada alert aktif. Semua sensor dalam batas normal.
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+
+    <section class="card" aria-labelledby="wo-list-title">
+        <div class="card-body">
+            <div class="section-head">
+                <div>
+                    <h2 id="wo-list-title">Work order prioritas</h2>
+                    <p>{{ kpis.overdue_wos }} WO melewati tenggat.</p>
+                </div>
+                <a href="/work-orders" class="btn btn-quiet btn-sm">Semua</a>
+            </div>
+            <div class="table-wrap">
+                <table class="table table-sm workorder-table workorder-table-compact">
+                    <caption class="sr-only">Daftar work order aktif</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Kode</th>
+                            <th scope="col">Pekerjaan</th>
+                            <th scope="col">Tenggat</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for wo in work_orders %}
+                            {% set is_overdue = wo.due_at and wo.due_at < now and wo.status in ['pending', 'in_progress'] %}
+                            <tr class="row-link" data-row-href="/work-orders/{{ wo.id }}" tabindex="0">
+                                <td><a href="/work-orders/{{ wo.id }}" class="wo-code">{{ wo.code }}</a></td>
+                                <td>
+                                    <div class="wo-title"><a href="/work-orders/{{ wo.id }}">{{ wo.title }}</a></div>
+                                    <div class="cell-secondary">
+                                        <span class="priority-mark priority-{{ wo.priority }}">{{ status_maps.priority.get(wo.priority, wo.priority) }}</span>
+                                        · {{ wo.machine_code }}
+                                    </div>
+                                </td>
+                                <td class="wo-due {{ 'is-overdue' if is_overdue else '' }}">
+                                    {{ wo.due_at|date_only }}<small>{{ wo.due_at|time_only }}</small>
+                                </td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="3">
+                                    <div class="empty-row">
+                                        <i class="ti-check-box" aria-hidden="true"></i>
+                                        <span>Tidak ada work order aktif.</span>
+                                        <small>Semua pekerjaan pemeliharaan telah ditutup.</small>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+</div>
+
+<section class="card" aria-labelledby="fleet-title">
+    <div class="card-body">
+        <div class="section-head">
+            <div>
+                <h2 id="fleet-title">Kondisi armada</h2>
+                <p>Skor pola membandingkan sensor dengan riwayat sehat hingga 90 hari; bukan probabilitas kerusakan.</p>
+            </div>
+            <a href="/assets" class="btn btn-outline-secondary btn-sm">Kelola aset</a>
+        </div>
+        <div class="machine-grid">
+            {% for snap in snapshots %}
+                {% set machine = snap.machine %}
+                <article class="machine-card">
+                    <div class="machine-head">
+                        <div>
+                            <div class="machine-code">{{ machine.code }}</div>
+                            <h3 class="machine-name"><a href="/assets/{{ snap.id }}">{{ machine.name }}</a></h3>
+                            <p class="machine-location"><i class="ti-location-pin" aria-hidden="true"></i> {{ machine.location }} · {{ machine.asset_type }}</p>
+                        </div>
+                        <div class="health-chip">
+                            <div class="health-ring ring-sm is-{{ snap.health.key }}" style="--ring-value: {{ snap.score or 0 }};">
+                                <span class="ring-score">{{ snap.score|num(0) }}</span>
+                                <span class="ring-caption">Score</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="machine-badges">
+                        <span class="state-pill is-{{ machine.operational_status }}">{{ status_maps.machine_status.get(machine.operational_status, machine.operational_status) }}</span>
+                        <span class="badge badge-soft-{{ 'danger' if machine.criticality in ['critical', 'high'] else 'accent' }}">{{ status_maps.criticality.get(machine.criticality, machine.criticality) }}</span>
+                        {% if snap.is_synthetic %}<span class="source-tag">Data simulasi · {{ snap.source_label }}</span>{% elif snap.source %}<span class="source-tag">{{ snap.source_label }}</span>{% endif %}
+                        {% if snap.scenario_label %}<span class="badge badge-soft-info">Skenario · {{ snap.scenario_label }}</span>{% endif %}
+                        {% if snap.online %}<span class="live-indicator"><span class="status-dot" aria-hidden="true"></span> Online</span>{% endif %}
+                    </div>
+                    <div class="machine-ai-score is-{{ snap.predictive.state }}">
+                        <div>
+                            <span>Skor anomali</span>
+                            <strong>{{ snap.predictive.score|num(0) if snap.predictive.score is not none else '—' }}<small>/100</small></strong>
+                        </div>
+                        <p>
+                            {% if snap.predictive.drivers %}
+                                {{ snap.predictive.drivers[0].reason }}.
+                            {% else %}
+                                {{ snap.predictive.note }}
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="machine-body">
+                        <div class="sensor-mini-grid">
+                            {% for sensor in sensor_order %}
+                                {% set data = snap.sensors[sensor] %}
+                                <div class="sensor-mini is-{{ data.state }}">
+                                    <span class="sensor-mini-label"><i class="fa {{ sensors[sensor].icon }}" aria-hidden="true"></i> {{ data.label }}</span>
+                                    <span class="sensor-mini-value">{{ data.value|num(1) }}<small>{{ data.unit }}</small></span>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="machine-foot">
+                        <div class="machine-links">
+                            <a class="machine-link {{ 'is-alert' if snap.alert_count }}" href="/alerts?machine={{ machine.code }}">
+                                <i class="ti-bell" aria-hidden="true"></i> {{ snap.alert_count }} alert
+                            </a>
+                            <a class="machine-link" href="/work-orders?machine={{ machine.code }}">
+                                <i class="ti-clipboard" aria-hidden="true"></i> {{ snap.wo_count }} WO
+                            </a>
+                        </div>
+                        <a class="machine-primary-link" href="/cbm-monitoring?machine={{ machine.code }}">
+                            Monitoring <i class="ti-angle-right" aria-hidden="true"></i>
+                        </a>
+                    </div>
+                </article>
+            {% else %}
+                <div class="empty-state">
+                    <span class="empty-icon"><i class="ti-harddrives" aria-hidden="true"></i></span>
+                    <h3>Belum ada mesin aktif</h3>
+                    <p>Tambahkan aset terlebih dahulu agar telemetry dan work order dapat dipantau.</p>
+                    {% if is_admin %}
+                        <div class="empty-actions"><a href="/assets/new" class="btn btn-primary btn-sm">Tambah aset</a></div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block vendor_scripts %}
+<script src="/static/theme/vendors/apexcharts/apexcharts.min.js?v={{ app_version }}"></script>
+{% endblock %}

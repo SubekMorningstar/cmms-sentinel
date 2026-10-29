@@ -1,0 +1,257 @@
+{% extends "layouts/app.html" %}
+{% block title %}Alert {{ alert.machine_code }} · {{ sensor.label if sensor else alert.sensor }}{% endblock %}
+
+{% block page_description %}
+    <p class="page-description">Investigasi peringatan sensor, catat tindakan, dan hubungkan dengan work order pemeliharaan.</p>
+{% endblock %}
+
+{% block page_actions %}
+    <a href="/alerts" class="btn btn-quiet btn-sm"><i class="ti-arrow-left" aria-hidden="true"></i> Pusat peringatan</a>
+    <a href="/assets/{{ machine._id }}" class="btn btn-outline-secondary btn-sm"><i class="ti-harddrives" aria-hidden="true"></i> {{ machine.code }}</a>
+{% endblock %}
+
+{% block content %}
+{% set tone = 'is-resolved' if alert.status == 'resolved' else ('is-critical' if alert.level == 'critical' else 'is-warning') %}
+{% set sensor_label = sensor.label if sensor else alert.sensor %}
+{% set unit = alert.unit or (sensor.unit if sensor else '') %}
+
+<section class="alert-hero {{ tone }}" aria-labelledby="alert-title">
+    <div>
+        <div class="alert-hero-top">
+            <span class="level-tag {{ alert.level }}">{{ status_maps.alert_level.get(alert.level, alert.level) }}</span>
+            <span class="state-pill is-{{ alert.status }}">{{ status_maps.alert_status.get(alert.status, alert.status) }}</span>
+            <span class="source-tag"><i class="ti-pulse" aria-hidden="true"></i> {{ sensor_label }}</span>
+            {% if alert.source in ['simulator', 'dataset-seed'] %}<span class="source-tag">Data simulasi · {{ status_maps.source.get(alert.source, alert.source) }}</span>{% elif alert.source %}<span class="source-tag">{{ status_maps.source.get(alert.source, alert.source) }}</span>{% endif %}
+            {% if alert.scenario_id %}<span class="badge badge-soft-info">Skenario · {{ alert.scenario_id|replace('-', ' ') }}</span>{% endif %}
+            {% if alert.wo_id %}<span class="badge badge-soft-info"><i class="ti-clipboard" aria-hidden="true"></i> Work order tertaut</span>{% endif %}
+        </div>
+        <h2 class="alert-hero-title" id="alert-title">{{ alert.machine_code }} · {{ sensor_label }} di luar batas</h2>
+        <p class="alert-hero-message">{{ alert.message }}</p>
+        <div class="alert-hero-meta">
+            <span><i class="ti-harddrives" aria-hidden="true"></i> {{ alert.machine_name }}</span>
+            <span><i class="ti-flag" aria-hidden="true"></i> Pertama {{ alert.first_seen|dt }}</span>
+            <span><i class="ti-time" aria-hidden="true"></i> Terakhir {{ alert.last_seen|relative }}</span>
+            <span><i class="ti-reload" aria-hidden="true"></i> {{ alert.readings_seen|default(1) }} pembacaan dikelompokkan dalam episode ini</span>
+            {% if alert.acknowledged_by_name %}
+                <span><i class="ti-eye" aria-hidden="true"></i> Diketahui {{ alert.acknowledged_by_name }} · {{ alert.acknowledged_at|dt }}</span>
+            {% endif %}
+        </div>
+    </div>
+    <div class="alert-hero-actions">
+        {% if alert.status == 'open' %}
+            <form method="post" action="/alerts/{{ alert.id }}/acknowledge">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn btn-primary btn-block"><i class="ti-eye" aria-hidden="true"></i> Tandai diketahui</button>
+            </form>
+        {% endif %}
+        {% if linked_wo %}
+            <a href="/work-orders/{{ linked_wo.id }}" class="btn btn-outline-secondary btn-block"><i class="ti-clipboard" aria-hidden="true"></i> {{ linked_wo.code }}</a>
+        {% elif open_wo %}
+            <a href="/work-orders/{{ open_wo.id }}" class="btn btn-outline-secondary btn-block"><i class="ti-clipboard" aria-hidden="true"></i> {{ open_wo.code }}</a>
+        {% elif is_active and machine %}
+            <form method="post" action="/alerts/{{ alert.id }}/work-order">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn btn-outline-secondary btn-block"><i class="ti-plus" aria-hidden="true"></i> Buat work order</button>
+            </form>
+        {% endif %}
+        <a href="/cbm-monitoring?machine={{ machine.code }}" class="btn btn-quiet btn-block"><i class="ti-pulse" aria-hidden="true"></i> Buka telemetry</a>
+    </div>
+</section>
+
+{% if is_active %}
+    <div class="status-flow" aria-label="Alur penanganan alert">
+        <span class="step current"><i class="ti-bell" aria-hidden="true"></i> Terdeteksi</span>
+        <span class="step {{ 'done' if alert.status == 'acknowledged' else '' }}"><i class="ti-eye" aria-hidden="true"></i> Diketahui</span>
+        <span class="step"><i class="ti-check-box" aria-hidden="true"></i> Selesai</span>
+    </div>
+{% endif %}
+
+<div class="split-8-4">
+    <div>
+        {% if value_pct is not none %}
+            <section class="value-gauge" aria-labelledby="gauge-title">
+                <div class="value-gauge-head">
+                    <span id="gauge-title">Nilai {{ sensor_label }} saat ini</span>
+                    <small>Ambang batas {{ status_maps.alert_level.get(alert.level, alert.level)|lower }}</small>
+                </div>
+                <div class="value-gauge-number">
+                    <strong>{{ alert.value|num(1) }}</strong>
+                    <span>{{ unit }}</span>
+                </div>
+                <div class="gauge-track" role="img"
+                     aria-label="Nilai {{ alert.value|num(1) }} {{ unit }}, peringatan {{ threshold.warning|num(1) }}, kritis {{ threshold.critical|num(1) }}"
+                     style="background: linear-gradient(90deg, var(--ui-good-soft) 0 {{ warning_pct }}%, var(--ui-warning-soft) {{ warning_pct }}% {{ critical_pct }}%, var(--ui-danger-soft) {{ critical_pct }}% 100%);">
+                    <div class="gauge-fill" style="width: {{ value_pct }}%;"></div>
+                    <span class="gauge-marker" style="left: {{ warning_pct }}%;" title="Batas peringatan"></span>
+                    <span class="gauge-marker is-critical" style="left: {{ critical_pct }}%;" title="Batas kritis"></span>
+                </div>
+                <div class="gauge-legend">
+                    <span>Normal</span>
+                    <span>Peringatan {{ threshold.warning|num(1) }} {{ unit }}</span>
+                    <span>Kritis {{ threshold.critical|num(1) }} {{ unit }}</span>
+                </div>
+                <p class="field-hint">Ambang batas diambil dari konfigurasi mesin. Nilai kritis memicu work order otomatis.</p>
+            </section>
+        {% endif %}
+
+        <section class="recommendation-card" aria-labelledby="recommendation-title">
+            <div class="card-body">
+                <div class="recommendation-head">
+                    <i class="ti-light-bulb" aria-hidden="true"></i>
+                    <span id="recommendation-title">Rekomendasi tindakan</span>
+                </div>
+                <p>{{ recommendation }}</p>
+            </div>
+        </section>
+
+        {% if alert.status == 'resolved' %}
+            <section class="card" aria-labelledby="resolution-title">
+                <div class="card-body">
+                    <div class="section-head">
+                        <div>
+                            <h2 id="resolution-title">Penyelesaian</h2>
+                            <p>{{ alert.resolved_by_name or 'Sistem' }} · {{ alert.resolved_at|dt }}</p>
+                        </div>
+                        <span class="badge badge-soft-success"><i class="ti-check-box" aria-hidden="true"></i> Selesai</span>
+                    </div>
+                    <div class="threshold-summary">
+                        <strong>Catatan penyelesaian</strong>
+                        <span>{{ alert.resolution_note or 'Pulih otomatis setelah nilai sensor kembali normal.' }}</span>
+                    </div>
+                    {% if alert.outcome %}
+                        <div class="threshold-summary">
+                            <strong>Hasil tinjauan pekerjaan</strong>
+                            <span>{{ {'confirmed_issue': 'Gangguan terkonfirmasi dan ditangani', 'no_issue': 'Tidak ditemukan gangguan', 'monitor': 'Lanjutkan pemantauan'}.get(alert.outcome, alert.outcome) }}</span>
+                        </div>
+                    {% endif %}
+                </div>
+            </section>
+        {% endif %}
+
+        <section class="card" aria-labelledby="alert-data-title">
+            <div class="card-body">
+                <div class="section-head">
+                    <div>
+                        <h2 id="alert-data-title">Rincian peringatan</h2>
+                        <p>Data pembacaan dan konteks peringatan.</p>
+                    </div>
+                </div>
+                <dl class="alert-detail-list">
+                    <div><dt>Mesin</dt><dd><a href="/assets/{{ machine._id }}">{{ machine.code }} · {{ machine.name }}</a></dd></div>
+                    <div><dt>Lokasi</dt><dd>{{ machine.location }}</dd></div>
+                    <div><dt>Sensor</dt><dd>{{ sensor_label }} ({{ unit or '—' }})</dd></div>
+                    <div><dt>Nilai tercatat</dt><dd>{{ alert.value|num(3) }} {{ unit }}</dd></div>
+                    <div><dt>Nilai ambang</dt><dd>{{ alert.threshold_value|num(3) }} {{ unit }}</dd></div>
+                    <div><dt>Level</dt><dd>{{ status_maps.alert_level.get(alert.level, alert.level) }}</dd></div>
+                    <div><dt>Status</dt><dd>{{ status_maps.alert_status.get(alert.status, alert.status) }}</dd></div>
+                    <div><dt>Pertama terdeteksi</dt><dd>{{ alert.first_seen|dt }}</dd></div>
+                    <div><dt>Terakhir diperbarui</dt><dd>{{ alert.last_seen|dt }}</dd></div>
+                    {% if alert.acknowledged_at %}
+                        <div><dt>Diketahui oleh</dt><dd>{{ alert.acknowledged_by_name or '—' }} · {{ alert.acknowledged_at|dt }}</dd></div>
+                    {% endif %}
+                    {% if alert.escalated_at %}
+                        <div><dt>Naik ke kritis</dt><dd>{{ alert.escalated_at|dt }}</dd></div>
+                    {% endif %}
+                    {% if alert.resolved_at %}
+                        <div><dt>Selesai</dt><dd>{{ alert.resolved_by_name or 'Sistem' }} · {{ alert.resolved_at|dt }}</dd></div>
+                    {% endif %}
+                </dl>
+            </div>
+        </section>
+
+        {% if other_alerts %}
+            <section class="card" aria-labelledby="other-alerts-title">
+                <div class="card-body">
+                    <div class="section-head">
+                        <div>
+                            <h2 id="other-alerts-title">Peringatan lain di mesin ini</h2>
+                            <p>Riwayat alert terbaru dari aset yang sama.</p>
+                        </div>
+                        <a href="/alerts?machine={{ machine.code }}" class="btn btn-quiet btn-sm">Semua</a>
+                    </div>
+                    {% for item in other_alerts %}
+                        <a class="other-alert" href="/alerts/{{ item.id }}">
+                            <span class="level-tag {{ item.level }}">{{ status_maps.alert_level.get(item.level, item.level) }}</span>
+                            <span>{{ sensors[item.sensor].label if item.sensor in sensors else item.sensor }}</span>
+                            <span class="muted">· {{ status_maps.alert_status.get(item.status, item.status) }}</span>
+                            <time>{{ item.last_seen|relative }}</time>
+                        </a>
+                    {% endfor %}
+                </div>
+            </section>
+        {% endif %}
+    </div>
+
+    <aside>
+        {% if is_active %}
+            <section class="card form-side-card" aria-labelledby="resolve-title">
+                <div class="card-body">
+                    <div class="section-head">
+                        <div>
+                            <h2 id="resolve-title">Selesaikan alert</h2>
+                            <p>Catat tindakan yang sudah dilakukan.</p>
+                        </div>
+                    </div>
+                    <form method="post" action="/alerts/{{ alert.id }}/resolve" data-submit-once>
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <div class="form-group">
+                            <label for="alert-resolution-note">Catatan penyelesaian</label>
+                            <textarea class="form-control" id="alert-resolution-note" name="note" rows="4" required
+                                      minlength="5" maxlength="1000"
+                                      placeholder="Tindakan perbaikan, penggantian komponen, atau hasil verifikasi."></textarea>
+                            <p class="field-hint">Minimal 5 karakter. Alert dapat juga pulih otomatis bila nilai sensor kembali normal.</p>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block"><i class="ti-check-box" aria-hidden="true"></i> Tandai selesai</button>
+                    </form>
+                </div>
+            </section>
+        {% endif %}
+
+        <section class="card form-side-card" aria-labelledby="alert-wo-title">
+            <div class="card-body">
+                <div class="section-head">
+                    <div>
+                        <h2 id="alert-wo-title">Tindak lanjut</h2>
+                        <p>Hubungkan peringatan dengan pekerjaan pemeliharaan.</p>
+                    </div>
+                </div>
+                {% if linked_wo %}
+                    <div class="threshold-summary">
+                        <strong>{{ linked_wo.code }}</strong>
+                        <span>{{ linked_wo.title }}</span>
+                        <span class="muted">Status {{ status_maps.wo_status.get(linked_wo.status, linked_wo.status) }}</span>
+                    </div>
+                    <a href="/work-orders/{{ linked_wo.id }}" class="btn btn-outline-secondary btn-sm btn-block"><i class="ti-clipboard" aria-hidden="true"></i> Lihat work order</a>
+                {% elif open_wo %}
+                    <div class="threshold-summary">
+                        <strong>{{ open_wo.code }}</strong>
+                        <span>{{ open_wo.title }}</span>
+                        <span class="muted">Sudah ada work order terbuka untuk sensor ini.</span>
+                    </div>
+                    <a href="/work-orders/{{ open_wo.id }}" class="btn btn-outline-secondary btn-sm btn-block"><i class="ti-clipboard" aria-hidden="true"></i> Lihat work order</a>
+                {% elif is_active and machine %}
+                    <p class="field-hint">Belum ada work order untuk sensor ini. Buat work order agar tindakan perbaikan dapat dilacak.</p>
+                    <form method="post" action="/alerts/{{ alert.id }}/work-order">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="btn btn-primary btn-sm btn-block"><i class="ti-plus" aria-hidden="true"></i> Buat work order</button>
+                    </form>
+                {% else %}
+                    <p class="field-hint">Alert sudah selesai dan tidak memerlukan work order baru.</p>
+                {% endif %}
+            </div>
+        </section>
+
+        <section class="card form-side-card">
+            <div class="card-body">
+                <h2 class="eyebrow">Aksi cepat</h2>
+                <div class="quick-actions">
+                    <a href="/cbm-monitoring?machine={{ machine.code }}" class="btn btn-outline-secondary btn-sm"><i class="ti-pulse" aria-hidden="true"></i> Telemetry mesin</a>
+                    <a href="/thresholds?machine={{ machine.code }}" class="btn btn-outline-secondary btn-sm"><i class="ti-settings" aria-hidden="true"></i> Threshold sensor</a>
+                    <a href="/assets/{{ machine._id }}" class="btn btn-outline-secondary btn-sm"><i class="ti-harddrives" aria-hidden="true"></i> Detail aset</a>
+                    <a href="/alerts?machine={{ machine.code }}" class="btn btn-outline-secondary btn-sm"><i class="ti-bell" aria-hidden="true"></i> Semua alert mesin</a>
+                </div>
+            </div>
+        </section>
+    </aside>
+</div>
+{% endblock %}

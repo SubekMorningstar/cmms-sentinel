@@ -1,0 +1,119 @@
+{% extends "layouts/app.html" %}
+{% block title %}Profil Saya{% endblock %}
+
+{% block page_description %}
+    <p class="page-description">Kelola identitas akun, keamanan password, dan pantau penugasan aktif Anda.</p>
+{% endblock %}
+
+{% block page_actions %}
+    <a href="/work-orders?q={{ current_user.nama_lengkap|urlencode }}" class="btn btn-outline-secondary btn-sm"><i class="ti-clipboard" aria-hidden="true"></i> Work order saya</a>
+    <a href="/dashboard" class="btn btn-quiet btn-sm"><i class="ti-layout-grid2" aria-hidden="true"></i> Dashboard</a>
+{% endblock %}
+
+{% block content %}
+<section class="profile-hero" aria-labelledby="profile-name">
+    <span class="user-avatar" style="width: 58px; height: 58px; border-radius: 18px; font-size: 1.1rem;">{{ current_user.initials }}</span>
+    <div class="profile-identity">
+        <h2 id="profile-name">{{ current_user.nama_lengkap }}</h2>
+        <p><i class="ti-email" aria-hidden="true"></i> {{ current_user.email }}</p>
+        <div class="profile-badges">
+            <span class="badge badge-soft-{{ 'accent' if current_user.role == 'admin' else 'info' }}">{{ current_user.role_label }}</span>
+            <span class="state-pill is-resolved">Akun aktif</span>
+            <span class="badge badge-soft-info"><i class="ti-clipboard" aria-hidden="true"></i> {{ open_assignments }} penugasan aktif</span>
+        </div>
+    </div>
+    <div class="profile-actions">
+        <span class="badge badge-soft-info"><i class="ti-time" aria-hidden="true"></i> Bergabung {{ current_user.created_at|date_only }}</span>
+        <span class="badge badge-soft-info"><i class="ti-eye" aria-hidden="true"></i> Login terakhir {{ current_user.last_login_at|dt if current_user.last_login_at else '—' }}</span>
+    </div>
+</section>
+
+<section class="profile-grid" aria-label="Pengaturan profil">
+    <article class="profile-card">
+        <div class="profile-card-head">
+            <h3>Informasi profil</h3>
+            <p>Perbarui nama yang tampil pada aktivitas dan work order.</p>
+        </div>
+        <div class="profile-card-body">
+            <form method="post" action="/profile" data-submit-once>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="form-group">
+                    <label for="profile-name-input">Nama lengkap</label>
+                    <input type="text" class="form-control" id="profile-name-input" name="nama_lengkap"
+                           value="{{ current_user.nama_lengkap }}" required minlength="2" maxlength="80" autocomplete="name">
+                </div>
+                <div class="form-group">
+                    <label for="profile-email">Email</label>
+                    <input type="email" class="form-control" id="profile-email" value="{{ current_user.email }}" disabled
+                           aria-describedby="profile-email-hint">
+                    <p class="field-hint" id="profile-email-hint">Email hanya dapat diubah oleh administrator melalui menu Pengguna.</p>
+                </div>
+                <div class="form-group">
+                    <label for="profile-role">Peran</label>
+                    <input type="text" class="form-control" id="profile-role" value="{{ current_user.role_label }}" disabled>
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm"><i class="ti-save" aria-hidden="true"></i> Simpan profil</button>
+            </form>
+        </div>
+    </article>
+
+    <article class="profile-card">
+        <div class="profile-card-head">
+            <h3>Keamanan password</h3>
+            <p>Gunakan kombinasi unik minimal 10 karakter dengan huruf dan angka.</p>
+        </div>
+        <div class="profile-card-body">
+            <form method="post" action="/profile/password" data-submit-once>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="form-group">
+                    <label for="current-password">Password saat ini</label>
+                    <input type="password" class="form-control" id="current-password" name="current_password"
+                           required autocomplete="current-password">
+                </div>
+                <div class="form-group">
+                    <label for="new-password">Password baru</label>
+                    <input type="password" class="form-control" id="new-password" name="new_password"
+                           required minlength="10" maxlength="72" autocomplete="new-password">
+                </div>
+                <div class="form-group">
+                    <label for="confirm-password">Konfirmasi password baru</label>
+                    <input type="password" class="form-control" id="confirm-password" name="confirm_password"
+                           required minlength="10" maxlength="72" autocomplete="new-password">
+                    <p class="field-hint">Password baru tidak boleh sama dengan password saat ini.</p>
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm"><i class="ti-lock" aria-hidden="true"></i> Ubah password</button>
+            </form>
+        </div>
+    </article>
+</section>
+
+<section class="card" aria-labelledby="assignments-title">
+    <div class="card-body">
+        <div class="section-head">
+            <div>
+                <h2 id="assignments-title">Penugasan terbaru</h2>
+                <p>Lima work order terakhir yang ditugaskan kepada Anda.</p>
+            </div>
+            <a href="/work-orders?q={{ current_user.nama_lengkap|urlencode }}" class="btn btn-quiet btn-sm">Lihat semua</a>
+        </div>
+        <ul class="assignment-list">
+            {% for wo in recent_orders %}
+                <li class="assignment-item">
+                    <span class="feed-icon is-info"><i class="ti-clipboard" aria-hidden="true"></i></span>
+                    <div class="side-list-body">
+                        <a class="side-list-title" href="/work-orders/{{ wo.id }}">{{ wo.code }} · {{ wo.title }}</a>
+                        <div class="side-list-meta">
+                            <span>{{ wo.machine_code }}</span>
+                            <span>{{ status_maps.wo_status.get(wo.status, wo.status) }}</span>
+                            <span><i class="ti-time" aria-hidden="true"></i> {{ wo.created_at|relative }}</span>
+                        </div>
+                    </div>
+                    <span class="priority-mark priority-{{ wo.priority }}">{{ status_maps.priority.get(wo.priority, wo.priority) }}</span>
+                </li>
+            {% else %}
+                <li><div class="feed-empty"><i class="ti-check-box" aria-hidden="true"></i> Belum ada work order yang ditugaskan kepada Anda.</div></li>
+            {% endfor %}
+        </ul>
+    </div>
+</section>
+{% endblock %}

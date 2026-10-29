@@ -1,0 +1,179 @@
+{% extends "layouts/app.html" %}
+{% block title %}Work Order Baru{% endblock %}
+
+{% block page_description %}
+    <p class="page-description">
+        Catat pekerjaan pemeliharaan, tentukan prioritas, teknisi, dan tenggat penyelesaian.
+    </p>
+{% endblock %}
+
+{% block page_actions %}
+    <a href="/work-orders" class="btn btn-quiet btn-sm"><i class="ti-arrow-left" aria-hidden="true"></i> Daftar work order</a>
+{% endblock %}
+
+{% block content %}
+<div class="split-8-4">
+    <section class="card form-card">
+        <div class="card-body">
+            {% if error %}
+                <div class="form-error-banner" role="alert">
+                    <i class="ti-alert" aria-hidden="true"></i>
+                    <span>{{ error }}</span>
+                </div>
+            {% endif %}
+
+            <form method="post" action="/work-orders" data-submit-once>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                <div class="form-section">
+                    <div class="form-section-head">
+                        <span class="form-section-icon"><i class="ti-harddrives" aria-hidden="true"></i></span>
+                        <div>
+                            <h2>Aset &amp; pekerjaan</h2>
+                            <p>Tentukan mesin dan ringkasan pekerjaan yang akan dilakukan.</p>
+                        </div>
+                    </div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="wo-machine">Mesin <span class="required-mark">*</span></label>
+                            <select class="form-control" id="wo-machine" name="machine_id" required>
+                                <option value="">Pilih mesin</option>
+                                {% for item in machines if item.active %}
+                                    <option value="{{ item._id }}" {{ 'selected' if form.machine_id|string == item._id|string else '' }}>
+                                        {{ item.code }} — {{ item.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="wo-type">Jenis pekerjaan <span class="required-mark">*</span></label>
+                            <select class="form-control" id="wo-type" name="type" required>
+                                {% for key, label in status_maps.wo_type.items() %}
+                                    <option value="{{ key }}" {{ 'selected' if form.type == key else '' }}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group form-group-full">
+                            <label for="wo-title">Judul work order <span class="required-mark">*</span></label>
+                            <input type="text" class="form-control" id="wo-title" name="title" value="{{ form.title }}"
+                                   required minlength="5" maxlength="140" placeholder="Contoh: Ganti bearing spindle dan realignment">
+                            <p class="field-hint">5–140 karakter. Gunakan judul yang spesifik dan dapat ditindaklanjuti.</p>
+                        </div>
+                        <div class="form-group form-group-full">
+                            <label for="wo-description">Deskripsi pekerjaan <span class="required-mark">*</span></label>
+                            <textarea class="form-control" id="wo-description" name="description" rows="5" required minlength="5" maxlength="2000"
+                                      placeholder="Kondisi temuan, langkah pekerjaan, kebutuhan spare part, dan aspek keselamatan.">{{ form.description }}</textarea>
+                            <p class="field-hint">5–2.000 karakter.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="form-section-head">
+                        <span class="form-section-icon"><i class="ti-check-box" aria-hidden="true"></i></span>
+                        <div>
+                            <h2>Checklist kerja</h2>
+                            <p>Satu langkah per baris. Jika dikosongkan, checklist standar sesuai jenis pekerjaan digunakan.</p>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="wo-checklist">Langkah pekerjaan</label>
+                        <textarea class="form-control" id="wo-checklist" name="checklist" rows="5" maxlength="1600"
+                                  placeholder="Pastikan area kerja aman&#10;Periksa kondisi komponen&#10;Uji fungsi aset">{{ form.checklist|default('') }}</textarea>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="form-section-head">
+                        <span class="form-section-icon"><i class="ti-flag" aria-hidden="true"></i></span>
+                        <div>
+                            <h2>Prioritas &amp; penugasan</h2>
+                            <p>Prioritas menentukan SLA awal dan urutan pekerjaan pada daftar aktif.</p>
+                        </div>
+                    </div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="wo-priority">Prioritas <span class="required-mark">*</span></label>
+                            <select class="form-control" id="wo-priority" name="priority" required>
+                                {% for key, label in status_maps.priority.items() %}
+                                    <option value="{{ key }}" {{ 'selected' if form.priority == key else '' }}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="wo-assignee">Teknisi</label>
+                            {% if can_assign %}
+                                <select class="form-control" id="wo-assignee" name="assigned_to">
+                                    <option value="">Belum ditugaskan</option>
+                                    {% for assignee in assignees %}
+                                        <option value="{{ assignee._id }}" {{ 'selected' if form.assigned_to|string == assignee._id|string else '' }}>
+                                            {{ assignee.nama_lengkap }}{% if assignee.role == 'admin' %} · Administrator{% endif %}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                                <p class="field-hint">Administrator dapat menugaskan ke teknisi mana pun.</p>
+                            {% else %}
+                                <select class="form-control" id="wo-assignee" disabled>
+                                    {% for assignee in assignees %}
+                                        <option selected>{{ assignee.nama_lengkap }}</option>
+                                    {% endfor %}
+                                </select>
+                                <p class="field-hint">Work order otomatis ditugaskan kepada akun Anda.</p>
+                            {% endif %}
+                        </div>
+                        <div class="form-group">
+                            <label for="wo-due">Tenggat <span class="required-mark">*</span></label>
+                            <select class="form-control" id="wo-due" name="due" data-due-select required>
+                                {% for key, label, value in due_options %}
+                                    <option value="{{ key }}" {{ 'selected' if form.due == key else '' }}>{{ label }} · {{ value|dt }}</option>
+                                {% endfor %}
+                                <option value="custom" {{ 'selected' if form.due == 'custom' else '' }}>Tenggat khusus</option>
+                            </select>
+                        </div>
+                        <div class="form-group toggle-panel {{ 'is-visible' if form.due == 'custom' else '' }}" data-due-custom>
+                            <label for="wo-due-custom">Tanggal &amp; jam tenggat</label>
+                            <input type="datetime-local" class="form-control" id="wo-due-custom" name="due_custom" value="{{ form.due_custom }}">
+                            <p class="field-hint">Tidak boleh berada di masa lalu.</p>
+                        </div>
+                    </div>
+                    <div class="threshold-summary">
+                        <span><strong>SLA awal:</strong> kritis 4 jam, tinggi 24 jam, sedang 24 jam, rendah 72 jam.</span>
+                        <span>Perubahan tenggat setelah dibuat dapat dilakukan melalui penyesuaian pada work order.</span>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary"><i class="ti-save" aria-hidden="true"></i> Buat work order</button>
+                    <a href="/work-orders" class="btn btn-quiet">Batal</a>
+                    <span class="form-actions-note">Aktivitas baru dicatat pada timeline dan audit trail.</span>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <aside class="form-side">
+        <section class="card form-side-card">
+            <div class="card-body">
+                <h2 class="eyebrow">Standar pekerjaan</h2>
+                <ul class="form-side-list">
+                    <li><i class="ti-check-box" aria-hidden="true"></i><span><strong>Gunakan data sensor.</strong> Sertakan nilai suhu, getaran, daya, atau suara sebagai bukti kondisi.</span></li>
+                    <li><i class="ti-check-box" aria-hidden="true"></i><span><strong>Jelaskan tindakan.</strong> Tuliskan langkah, spare part, dan kebutuhan izin kerja.</span></li>
+                    <li><i class="ti-check-box" aria-hidden="true"></i><span><strong>Pasang tenggat realistis.</strong> Pilih SLA yang sesuai dengan tingkat kekritisan mesin.</span></li>
+                    <li><i class="ti-shield" aria-hidden="true"></i><span><strong>Dokumentasikan penyelesaian.</strong> Catat downtime dan temuan pada saat menutup work order.</span></li>
+                </ul>
+            </div>
+        </section>
+        <section class="card form-side-card">
+            <div class="card-body">
+                <h2 class="eyebrow">Alur status</h2>
+                <div class="status-flow">
+                    <span class="step current"><i class="ti-time" aria-hidden="true"></i> Menunggu</span>
+                    <span class="step"><i class="ti-settings" aria-hidden="true"></i> Dikerjakan</span>
+                    <span class="step"><i class="ti-check-box" aria-hidden="true"></i> Selesai</span>
+                </div>
+                <p class="field-hint">Hanya Administrator yang dapat membatalkan work order.</p>
+            </div>
+        </section>
+    </aside>
+</div>
+{% endblock %}

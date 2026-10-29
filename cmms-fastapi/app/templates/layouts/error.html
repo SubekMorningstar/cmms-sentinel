@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex">
+    <title>{{ status_code }} · {{ title }} · {{ app_name }}</title>
+    <link rel="icon" type="image/png" sizes="96x96" href="/static/theme/img/favicon.png">
+    <link rel="stylesheet" href="/static/theme/css/siqtheme.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/css/app.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/css/cmms.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/css/glass-v3.css?v={{ app_version }}">
+</head>
+<body class="login-page error-page theme-glass">
+
+    <main class="login-wrapper">
+        <div class="error-shell">
+            <a href="/dashboard" class="showcase-brand error-brand" aria-label="CMMS Sentinel">
+                <span class="brand-mark brand-mark-lg" aria-hidden="true"><i class="ti-pulse"></i></span>
+                <span><span class="text-carolina">CMMS</span> <span class="showcase-brand-name">Sentinel</span></span>
+            </a>
+
+            <section class="card error-card">
+                <div class="card-body">
+                    {% set error_icon = {400: 'ti-na', 403: 'ti-shield', 404: 'ti-map-alt', 500: 'ti-server'} %}
+                    <span class="error-mark" aria-hidden="true"><i class="{{ error_icon.get(status_code, 'ti-alert') }}"></i></span>
+                    <p class="error-code">{{ status_code }}</p>
+                    <h1 class="error-title">{{ title }}</h1>
+                    <p class="error-message">{{ message }}</p>
+                    <div class="error-actions">
+                        {% if current_user %}
+                            <a href="/dashboard" class="btn btn-primary"><i class="ti-dashboard" aria-hidden="true"></i> Kembali ke Pusat Operasi</a>
+                        {% else %}
+                            <a href="/login" class="btn btn-primary"><i class="ti-lock" aria-hidden="true"></i> Masuk ke aplikasi</a>
+                        {% endif %}
+                        <button type="button" class="btn btn-outline-secondary" data-history-back>
+                            <i class="ti-arrow-left" aria-hidden="true"></i> Halaman sebelumnya
+                        </button>
+                    </div>
+                    {% if status_code == 500 %}
+                        <p class="error-note">Bila masalah berlanjut, hubungi Administrator dan sertakan waktu kejadian.</p>
+                    {% elif status_code == 403 %}
+                        <p class="error-note">Halaman ini memerlukan peran Administrator. Akun Anda saat ini tidak memiliki akses.</p>
+                    {% elif status_code == 400 %}
+                        <p class="error-note">Muat ulang halaman lalu ulangi proses. Token keamanan formulir dapat kedaluwarsa setelah sesi berubah.</p>
+                    {% endif %}
+                </div>
+            </section>
+
+            <div class="login-page-foot error-foot">
+                <span>{{ app_name }} · v{{ app_version }}</span>
+            </div>
+        </div>
+    </main>
+
+    <script src="/static/theme/scripts/siqtheme.js?v={{ app_version }}"></script>
+    <script src="/static/js/app.js?v={{ app_version }}"></script>
+    <script src="/static/js/cmms.js?v={{ app_version }}"></script>
+</body>
+</html>

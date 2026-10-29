@@ -1,0 +1,142 @@
+{% extends "layouts/app.html" %}
+{% block title %}{{ 'Pengguna baru' if mode == 'new' else 'Edit ' ~ target.nama_lengkap }}{% endblock %}
+
+{% block page_description %}
+    <p class="page-description">{{ 'Tambahkan akun administrator atau teknisi baru.' if mode == 'new' else 'Perbarui identitas, peran, status, dan kredensial akun.' }}</p>
+{% endblock %}
+
+{% block page_actions %}
+    <a href="/users" class="btn btn-quiet btn-sm"><i class="ti-arrow-left" aria-hidden="true"></i> Daftar pengguna</a>
+{% endblock %}
+
+{% block content %}
+<div class="split-main">
+    <section class="card form-card" aria-labelledby="user-form-title">
+        <div class="card-body">
+            {% if error %}
+                <div class="form-error-banner" role="alert">
+                    <i class="ti-alert" aria-hidden="true"></i>
+                    <span>{{ error }}</span>
+                </div>
+            {% endif %}
+
+            <form method="post" action="{{ '/users' if mode == 'new' else '/users/' ~ target.id }}" data-submit-once>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                <div class="form-section">
+                    <div class="form-section-head">
+                        <span class="form-section-icon"><i class="ti-user" aria-hidden="true"></i></span>
+                        <div>
+                            <h3 id="user-form-title">Identitas pengguna</h3>
+                            <p>Nama dan alamat email digunakan pada jejak audit serta notifikasi internal.</p>
+                        </div>
+                    </div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="user-name">Nama lengkap <span class="required-mark">*</span></label>
+                            <input type="text" class="form-control" id="user-name" name="nama_lengkap"
+                                   value="{{ form.nama_lengkap }}" required minlength="2" maxlength="80"
+                                   autocomplete="name" placeholder="Nama lengkap pengguna">
+                        </div>
+                        <div class="form-group">
+                            <label for="user-email">Email <span class="required-mark">*</span></label>
+                            <input type="email" class="form-control" id="user-email" name="email"
+                                   value="{{ form.email }}" required maxlength="120"
+                                   autocomplete="email" inputmode="email" spellcheck="false"
+                                   placeholder="nama@perusahaan.com">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="form-section-head">
+                        <span class="form-section-icon"><i class="ti-shield" aria-hidden="true"></i></span>
+                        <div>
+                            <h3>Peran &amp; akses</h3>
+                            <p>Administrator dapat mengelola aset, threshold, pengguna, dan konfigurasi integrasi.</p>
+                        </div>
+                    </div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="user-role">Peran <span class="required-mark">*</span></label>
+                            <select class="form-control" id="user-role" name="role" required>
+                                {% for key, label in status_maps.role.items() %}
+                                    <option value="{{ key }}" {{ 'selected' if form.role == key else '' }}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                            <p class="field-hint">Teknisi dapat menangani work order dan alert tanpa akses konfigurasi global.</p>
+                        </div>
+                        {% if target %}
+                            <div class="form-group">
+                                <label>Status akun</label>
+                                <label class="checkline" for="user-active">
+                                    <input type="checkbox" id="user-active" name="active" value="active" {{ 'checked' if form.active else '' }}>
+                                    <span>Akun aktif dan dapat masuk ke aplikasi</span>
+                                </label>
+                                <p class="field-hint">Akun nonaktif mempertahankan riwayat namun tidak dapat login.</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="form-section-head">
+                        <span class="form-section-icon"><i class="ti-lock" aria-hidden="true"></i></span>
+                        <div>
+                            <h3>{{ 'Password awal' if mode == 'new' else 'Reset password' }}</h3>
+                            <p>{{ 'Tentukan password kuat untuk akses pertama pengguna.' if mode == 'new' else 'Kosongkan bila tidak ingin mengubah password.' }}</p>
+                        </div>
+                    </div>
+                    <div class="form-group" style="max-width: 420px;">
+                        <label for="user-password">{{ 'Password' if mode == 'new' else 'Password baru (opsional)' }}{% if mode == 'new' %} <span class="required-mark">*</span>{% endif %}</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="user-password" name="password"
+                                   {{ 'required' if mode == 'new' else '' }} minlength="10" maxlength="72"
+                                   autocomplete="new-password" placeholder="{{ 'Minimal 10 karakter' if mode == 'new' else 'Biarkan kosong untuk mempertahankan password' }}">
+                            <div class="input-group-append">
+                                <button type="button" class="input-group-text password-toggle" data-toggle-password="#user-password"
+                                        aria-label="Tampilkan password" aria-pressed="false">
+                                    <i class="ti-eye" aria-hidden="true"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <p class="field-hint">Minimal 10 karakter, memuat huruf dan angka. Panjang maksimum 72 byte.</p>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <span class="form-actions-note"><i class="ti-info-alt" aria-hidden="true"></i> Perubahan dicatat pada audit trail.</span>
+                    <a href="/users" class="btn btn-outline-secondary btn-sm">Batal</a>
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="{{ 'ti-user' if mode == 'new' else 'ti-save' }}" aria-hidden="true"></i>
+                        {{ 'Tambah pengguna' if mode == 'new' else 'Simpan perubahan' }}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <aside class="form-side">
+        <section class="card form-side-card">
+            <div class="card-body">
+                <h2 class="eyebrow">Matriks akses</h2>
+                <ul class="form-side-list">
+                    <li><strong>Administrator</strong> — aset, threshold, pengguna, integrasi, seluruh work order dan alert.</li>
+                    <li><strong>Teknisi</strong> — memantau telemetry, menangani alert, membuat dan menyelesaikan work order.</li>
+                </ul>
+            </div>
+        </section>
+        <section class="card form-side-card">
+            <div class="card-body">
+                <h2 class="eyebrow">Kebijakan keamanan</h2>
+                <ul class="form-side-list">
+                    <li>Password disimpan sebagai hash bcrypt, tidak pernah ditampilkan kembali.</li>
+                    <li>Percobaan login dibatasi untuk mencegah brute force.</li>
+                    <li>Seluruh perubahan akun masuk ke audit trail.</li>
+                    {% if target %}<li>Akun saat ini: <strong>{{ target.email }}</strong>.</li>{% endif %}
+                </ul>
+            </div>
+        </section>
+    </aside>
+</div>
+{% endblock %}

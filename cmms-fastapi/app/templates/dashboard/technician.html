@@ -1,0 +1,39 @@
+{% extends "layouts/app.html" %}
+{% block title %}Pekerjaan Saya{% endblock %}
+{% block page_actions %}
+    <a href="/work-orders?status=active" class="btn btn-outline-secondary btn-sm">Semua tugas saya</a>
+    <a href="/work-orders/new" class="btn btn-primary btn-sm">Buat work order</a>
+{% endblock %}
+{% block content %}
+<section class="summary-grid" aria-label="Ringkasan tugas">
+    <a class="summary-card is-accent" href="/work-orders?status=active"><div class="summary-copy"><strong>{{ assigned_open }}</strong><span>WO saya yang aktif</span></div></a>
+    <a class="summary-card is-danger" href="/work-orders?status=overdue"><div class="summary-copy"><strong>{{ overdue }}</strong><span>Melewati tenggat</span></div></a>
+    <a class="summary-card is-warning" href="/work-orders?status=awaiting_review"><div class="summary-copy"><strong>{{ awaiting_review }}</strong><span>Menunggu tinjauan</span></div></a>
+    <a class="summary-card is-good" href="/work-orders?status=active"><div class="summary-copy"><strong>{{ due_soon }}</strong><span>Tenggat 24 jam</span></div></a>
+</section>
+{% if critical_alerts %}
+<div class="wo-priority-banner"><a href="/alerts?status=active"><strong>{{ critical_alerts }} alert kritis aktif pada armada virtual.</strong> Lihat pusat peringatan.</a></div>
+{% endif %}
+<section class="card">
+    <div class="card-body">
+        <div class="section-head"><div><h2>Pekerjaan saya</h2></div></div>
+        <div class="table-wrap">
+            <table class="table workorder-table">
+                <thead><tr><th>Work order</th><th>Aset &amp; lokasi</th><th>Prioritas</th><th>Status</th><th>Tenggat</th><th></th></tr></thead>
+                <tbody>
+                    {% for wo in orders %}
+                    <tr>
+                        <td><a href="/work-orders/{{ wo.id }}">{{ wo.code }} · {{ wo.title }}</a>{% if wo.simulation_run_id %}<div class="cell-secondary">Data simulasi · {{ wo.scenario_id|replace('-', ' ') }}</div>{% endif %}</td>
+                        <td>{{ wo.machine_code }} · {{ wo.machine_name }}<div class="cell-secondary">{{ wo.machine_location }}</div></td>
+                        <td>{{ status_maps.priority.get(wo.priority, wo.priority) }}</td>
+                        <td>{{ status_maps.wo_status.get(wo.status, wo.status) }}</td>
+                        <td class="{{ 'text-danger' if wo.is_overdue else '' }}">{{ wo.due_at|dt }}</td>
+                        <td><a class="btn btn-outline-secondary btn-sm" href="/work-orders/{{ wo.id }}">{{ 'Tinjau' if wo.status == 'awaiting_review' else 'Buka' }}</a></td>
+                    </tr>
+                    {% else %}<tr><td colspan="6">Belum ada work order yang ditugaskan kepada Anda.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+{% endblock %}

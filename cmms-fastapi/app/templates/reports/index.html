@@ -1,0 +1,203 @@
+{% extends "layouts/app.html" %}
+{% block title %}Laporan & Analitik{% endblock %}
+
+{% block page_description %}
+    <p class="page-description">Ringkasan kinerja pemeliharaan, keandalan aset, dan tren pekerjaan dalam satu periode.</p>
+{% endblock %}
+
+{% block page_actions %}
+    <a href="/reports/export.csv?dataset=work_orders&days={{ days }}" class="btn btn-primary btn-sm">
+        <i class="ti-download" aria-hidden="true"></i> Ekspor work order
+    </a>
+    <a href="/dashboard" class="btn btn-quiet btn-sm"><i class="ti-layout-grid2" aria-hidden="true"></i> Dashboard</a>
+{% endblock %}
+
+{% block content %}
+{% set kpis = payload.kpis %}
+<section class="filter-bar" aria-label="Periode laporan">
+    <div class="filter-summary" style="margin: 0;">
+        <span><strong>Periode {{ allowed_days[days] }}</strong> · {{ payload.range_start|dt }}–{{ payload.range_end|dt }} · {{ payload.per_machine|length }} mesin</span>
+        <span class="muted">Dibuat {{ generated_at|dt }}</span>
+    </div>
+    <div class="chip-row" role="group" aria-label="Pilih rentang laporan">
+        {% for value, label in allowed_days.items() %}
+            <a class="chip {{ 'is-active' if value == days else '' }}" href="/reports?days={{ value }}">{{ label }}</a>
+        {% endfor %}
+    </div>
+</section>
+
+<section class="integration-status" aria-label="Asal data laporan">
+    <span class="integration-status-icon"><i class="ti-info-alt" aria-hidden="true"></i></span>
+    <div>
+        <strong>Rentang laporan dan sumber data</strong>
+        {% if payload.source_breakdown %}
+            <p>
+                {% for source in payload.source_breakdown %}
+                    {% if source.is_synthetic %}Data simulasi · {% endif %}{{ source.label }}:
+                    {{ source.count|intnum }} pembacaan ({{ source.first_ts|dt }}–{{ source.last_ts|dt }}){% if not loop.last %}; {% endif %}
+                {% endfor %}
+            </p>
+        {% else %}
+            <p>Tidak ada pembacaan sensor pada rentang laporan ini.</p>
+        {% endif %}
+        <p>Indikator operasional mencakup alur pemeliharaan yang tercatat; data simulasi tidak mewakili kinerja pabrik nyata.</p>
+    </div>
+</section>
+
+<section class="report-grid" aria-label="Indikator keandalan">
+    <article class="report-metric {{ 'is-good' if kpis.availability >= 97 else ('is-warning' if kpis.availability >= 90 else 'is-danger') }}">
+        <p class="report-label"><i class="ti-time" aria-hidden="true"></i> Availability</p>
+        <p class="report-value">{{ kpis.availability|num(2) }}<small>%</small></p>
+        <p class="report-note">Ketersediaan armada dari total jam operasi periode ini.</p>
+    </article>
+    <article class="report-metric">
+        <p class="report-label"><i class="ti-settings" aria-hidden="true"></i> MTTR</p>
+        <p class="report-value">{{ kpis.mttr|num(1) if kpis.mttr is not none else '—' }}{% if kpis.mttr is not none %}<small>mnt</small>{% endif %}</p>
+        <p class="report-note">Rata-rata waktu perbaikan untuk {{ kpis.failures }} kegagalan korektif.</p>
+    </article>
+    <article class="report-metric">
+        <p class="report-label"><i class="ti-reload" aria-hidden="true"></i> MTBF</p>
+        <p class="report-value">{{ kpis.mtbf|num(1) if kpis.mtbf is not none else '—' }}{% if kpis.mtbf is not none %}<small>jam</small>{% endif %}</p>
+        <p class="report-note">Rata-rata waktu antar kegagalan armada.</p>
+    </article>
+    <article class="report-metric {{ 'is-good' if kpis.compliance is not none and kpis.compliance >= 90 else ('is-warning' if kpis.compliance is not none and kpis.compliance >= 75 else ('is-danger' if kpis.compliance is not none else '')) }}">
+        <p class="report-label"><i class="ti-check-box" aria-hidden="true"></i> SLA compliance</p>
+        <p class="report-value">{{ kpis.compliance|num(1) if kpis.compliance is not none else '—' }}{% if kpis.compliance is not none %}<small>%</small>{% endif %}</p>
+        <p class="report-note">Work order selesai sebelum tenggat.</p>
+    </article>
+    <article class="report-metric {{ 'is-warning' if kpis.downtime else '' }}">
+        <p class="report-label"><i class="ti-timer" aria-hidden="true"></i> Downtime</p>
+        <p class="report-value">{{ kpis.downtime|intnum }}<small>mnt</small></p>
+        <p class="report-note">Akumulasi downtime dari work order yang selesai.</p>
+    </article>
+    <article class="report-metric {{ 'is-warning' if kpis.backlog else '' }}">
+        <p class="report-label"><i class="ti-clipboard" aria-hidden="true"></i> Backlog</p>
+        <p class="report-value">{{ kpis.backlog|intnum }}<small>WO</small></p>
+        <p class="report-note">{{ kpis.opened }} dibuat · {{ kpis.resolved }} selesai pada periode ini.</p>
+    </article>
+</section>
+
+<div class="report-chart-grid">
+    <section class="chart-card" aria-labelledby="report-trend-title">
+        <div class="chart-panel-head">
+            <div>
+                <h2 id="report-trend-title">Tren work order</h2>
+                <p>Volume pekerjaan dibuat dan diselesaikan per hari.</p>
+                {% if payload.chart_data_sources.work_orders %}<span class="source-tag">Data simulasi</span>{% endif %}
+            </div>
+            <span class="badge badge-soft-info">{{ allowed_days[days] }}</span>
+        </div>
+        <div class="chart-box" data-chart="report-trend" data-height="280"
+             role="img" aria-label="Grafik batang tren work order dibuat dan diselesaikan"></div>
+    </section>
+    <section class="chart-card" aria-labelledby="report-health-title">
+        <div class="chart-panel-head">
+            <div>
+                <h2 id="report-health-title">Skor kesehatan mesin</h2>
+                <p>Peringkat kondisi aset berdasarkan telemetry terbaru.</p>
+                {% if payload.chart_data_sources.health %}<span class="source-tag">Data simulasi</span>{% endif %}
+            </div>
+            <span class="badge badge-soft-info">0–100</span>
+        </div>
+        <div class="chart-box" data-chart="report-health" data-height="280"
+             role="img" aria-label="Grafik batang horizontal skor kesehatan setiap mesin"></div>
+    </section>
+</div>
+
+<section class="card" aria-labelledby="report-table-title">
+    <div class="card-body" style="padding-bottom: .4rem;">
+        <div class="section-head">
+            <div>
+                <h2 id="report-table-title">Kinerja per mesin</h2>
+                <p>Keandalan, downtime, dan beban pemeliharaan tiap aset.</p>
+            </div>
+            <a href="/reports/export.csv?dataset=machines&days={{ days }}" class="btn btn-quiet btn-sm"><i class="ti-download" aria-hidden="true"></i> Ekspor master mesin</a>
+        </div>
+    </div>
+    <div class="table-wrap">
+        <table class="table workorder-table report-table">
+            <thead>
+                <tr>
+                    <th scope="col">Mesin</th>
+                    <th scope="col">Sumber / skenario</th>
+                    <th scope="col">Kesehatan</th>
+                    <th scope="col">Availability</th>
+                    <th scope="col">WO aktif</th>
+                    <th scope="col">Alert aktif</th>
+                    <th scope="col">Kegagalan</th>
+                    <th scope="col">MTTR</th>
+                    <th scope="col">Downtime</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in payload.per_machine %}
+                    {% set health = row.health.key if row.health else 'unknown' %}
+                    {% set avail = row.availability %}
+                    <tr data-row-href="/assets/{{ row.id }}" tabindex="0">
+                        <td>
+                            <span class="wo-code">{{ row.machine.code }}</span>
+                            <span class="wo-title">{{ row.machine.name }}</span>
+                            <span class="muted" style="display:block;">{{ row.machine.location }}</span>
+                        </td>
+                        <td data-label="Sumber">
+                            {% if row.is_synthetic %}<span class="source-tag">Data simulasi · {{ row.source_label }}</span>{% elif row.source_label %}<span class="source-tag">{{ row.source_label }}</span>{% else %}—{% endif %}
+                            {% if row.scenario_label %}<span class="muted" style="display:block;">{{ row.scenario_label }}</span>{% endif %}
+                        </td>
+                        <td data-label="Kesehatan">
+                            <span class="level-tag {{ 'critical' if health == 'critical' else ('warning' if health == 'warning' else ('good' if health == 'good' else 'neutral')) }}">
+                                {{ row.health.label if row.health else 'Tanpa data' }}
+                            </span>
+                            <span class="muted" style="display:block; margin-top:.2rem;">{{ row.score|num(1) if row.score is not none else '—' }}/100</span>
+                        </td>
+                        <td data-label="Availability">
+                            <div class="availability-cell">
+                                <span class="availability-bar">
+                                    <span class="availability-fill {{ 'is-warning' if avail < 97 and avail >= 90 else ('is-danger' if avail < 90 else '') }}" style="width: {{ avail }}%;"></span>
+                                </span>
+                                <span class="availability-value">{{ avail|num(1) }}%</span>
+                            </div>
+                        </td>
+                        <td data-label="WO aktif">{{ row.open_wos|intnum }}</td>
+                        <td data-label="Alert aktif">{{ row.active_alerts|intnum }}</td>
+                        <td data-label="Kegagalan">{{ row.failures|intnum }}</td>
+                        <td data-label="MTTR">{{ row.mttr|num(1) if row.mttr is not none else '—' }}</td>
+                        <td data-label="Downtime">{{ row.downtime|intnum }} mnt</td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="8"><div class="empty-state"><p>Belum ada mesin aktif untuk dilaporkan.</p></div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="card-body">
+        <div class="report-generated">
+            <span><i class="ti-info-alt" aria-hidden="true"></i> Availability dihitung dari total jam operasi dikurangi downtime work order selesai.</span>
+            <span>Diperbarui {{ generated_at|dt }}</span>
+        </div>
+    </div>
+</section>
+
+<section class="card" aria-labelledby="export-title">
+    <div class="card-body">
+        <div class="section-head">
+            <div>
+                <h2 id="export-title">Ekspor dataset</h2>
+                <p>Unduh data operasional dalam format CSV untuk analisis lanjutan. Periode mengikuti filter {{ allowed_days[days] }}.</p>
+            </div>
+        </div>
+        <div class="export-row">
+            <a class="btn btn-outline-secondary btn-sm" href="/reports/export.csv?dataset=work_orders&days={{ days }}"><i class="ti-clipboard" aria-hidden="true"></i> Work order</a>
+            <a class="btn btn-outline-secondary btn-sm" href="/reports/export.csv?dataset=alerts&days={{ days }}"><i class="ti-bell" aria-hidden="true"></i> Alert</a>
+            <a class="btn btn-outline-secondary btn-sm" href="/reports/export.csv?dataset=readings&days={{ days }}"><i class="ti-pulse" aria-hidden="true"></i> Pembacaan sensor</a>
+            <a class="btn btn-outline-secondary btn-sm" href="/reports/export.csv?dataset=machines&days={{ days }}"><i class="ti-harddrives" aria-hidden="true"></i> Master mesin</a>
+        </div>
+        <p class="field-hint" style="margin-top: .7rem;">Ekspor dibatasi 50.000 baris per berkas. Nilai sel yang berpotensi dieksekusi spreadsheet telah dinetralkan.</p>
+    </div>
+</section>
+
+<script type="application/json" data-chart-data="page" nonce="{{ csp_nonce }}">{{ chart_json|safe }}</script>
+{% endblock %}
+
+{% block vendor_scripts %}
+<script src="/static/theme/vendors/apexcharts/apexcharts.min.js?v={{ app_version }}"></script>
+{% endblock %}

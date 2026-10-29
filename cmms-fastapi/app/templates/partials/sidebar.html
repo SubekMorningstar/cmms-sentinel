@@ -1,0 +1,116 @@
+<nav id="sidebar" class="sidebar" aria-label="Navigasi utama">
+    <div class="sidebar-mobile-head">
+        <span>Menu Navigasi</span>
+        <button type="button" class="sidebar-close-btn" aria-label="Tutup menu navigasi">
+            <i class="ti-close" aria-hidden="true"></i>
+        </button>
+    </div>
+    <div class="sidebar-content">
+        <div class="sidebar-menu">
+            <ul>
+                <li class="header-menu">Operasional</li>
+                <li class="{{ 'active' if active_page == 'dashboard' }}">
+                    <a href="/dashboard" title="Pusat Operasi"{% if active_page == 'dashboard' %} aria-current="page"{% endif %}>
+                        <i class="ti-dashboard" aria-hidden="true"></i>
+                        <span class="menu-text">Pusat Operasi</span>
+                    </a>
+                </li>
+                <li class="{{ 'active' if active_page == 'monitoring' }}">
+                    <a href="/cbm-monitoring" title="Condition Monitoring"{% if active_page == 'monitoring' %} aria-current="page"{% endif %}>
+                        <i class="ti-pulse" aria-hidden="true"></i>
+                        <span class="menu-text">Condition Monitoring</span>
+                    </a>
+                </li>
+                <li class="{{ 'active' if active_page == 'alerts' }}">
+                    <a href="/alerts" title="Pusat Peringatan"{% if active_page == 'alerts' %} aria-current="page"{% endif %}>
+                        <i class="ti-bell" aria-hidden="true"></i>
+                        <span class="menu-text">Pusat Peringatan</span>
+                        {% if active_alert_count > 0 %}<span class="menu-badge">{{ active_alert_count }}</span>{% endif %}
+                    </a>
+                </li>
+                <li class="{{ 'active' if active_page == 'notifications' }}">
+                    <a href="/notifications" title="Notifikasi"{% if active_page == 'notifications' %} aria-current="page"{% endif %}>
+                        <i class="ti-bell" aria-hidden="true"></i><span class="menu-text">Notifikasi</span>
+                        {% if unread_notifications > 0 %}<span class="menu-badge">{{ unread_notifications }}</span>{% endif %}
+                    </a>
+                </li>
+
+                <li class="header-menu">Pemeliharaan</li>
+                <li class="{{ 'active' if active_page == 'work_orders' }}">
+                    <a href="/work-orders" title="Work Order"{% if active_page == 'work_orders' %} aria-current="page"{% endif %}>
+                        <i class="ti-clipboard" aria-hidden="true"></i>
+                        <span class="menu-text">Work Order</span>
+                        {% if fleet.open_wos > 0 %}<span class="menu-badge menu-badge-muted">{{ fleet.open_wos }}</span>{% endif %}
+                    </a>
+                </li>
+                <li class="{{ 'active' if active_page == 'inventory' }}">
+                    <a href="/inventory" title="Persediaan Suku Cadang"{% if active_page == 'inventory' %} aria-current="page"{% endif %}>
+                        <i class="ti-package" aria-hidden="true"></i><span class="menu-text">Persediaan</span>
+                    </a>
+                </li>
+                <li class="{{ 'active' if active_page == 'reports' }}">
+                    <a href="/reports" title="Laporan &amp; Analitik"{% if active_page == 'reports' %} aria-current="page"{% endif %}>
+                        <i class="ti-bar-chart" aria-hidden="true"></i>
+                        <span class="menu-text">Laporan &amp; Analitik</span>
+                    </a>
+                </li>
+
+                <li class="header-menu">Master Aset</li>
+                <li class="{{ 'active' if active_page == 'assets' }}">
+                    <a href="/assets" title="Aset &amp; Mesin"{% if active_page == 'assets' %} aria-current="page"{% endif %}>
+                        <i class="ti-harddrives" aria-hidden="true"></i>
+                        <span class="menu-text">Aset &amp; Mesin</span>
+                    </a>
+                </li>
+                <li class="{{ 'active' if active_page == 'thresholds' }}">
+                    <a href="/thresholds" title="Threshold Sensor"{% if active_page == 'thresholds' %} aria-current="page"{% endif %}>
+                        <i class="ti-settings" aria-hidden="true"></i>
+                        <span class="menu-text">Threshold Sensor</span>
+                    </a>
+                </li>
+
+                {% if is_admin %}
+                    <li class="header-menu">Administrasi</li>
+                    <li class="{{ 'active' if active_page == 'schedule' }}">
+                        <a href="/schedule" title="Penjadwalan Teknisi"{% if active_page == 'schedule' %} aria-current="page"{% endif %}>
+                            <i class="ti-calendar" aria-hidden="true"></i><span class="menu-text">Penjadwalan Teknisi</span>
+                        </a>
+                    </li>
+                    <li class="{{ 'active' if active_page == 'maintenance' }}">
+                        <a href="/maintenance" title="Pemeliharaan Preventif"{% if active_page == 'maintenance' %} aria-current="page"{% endif %}>
+                            <i class="ti-settings" aria-hidden="true"></i><span class="menu-text">Preventif</span>
+                        </a>
+                    </li>
+                    <li class="{{ 'active' if active_page == 'users' }}">
+                        <a href="/users" title="Pengguna"{% if active_page == 'users' %} aria-current="page"{% endif %}>
+                            <i class="ti-user" aria-hidden="true"></i>
+                            <span class="menu-text">Pengguna</span>
+                        </a>
+                    </li>
+                    <li class="{{ 'active' if active_page == 'audit' }}">
+                        <a href="/admin/audit" title="Audit Trail"{% if active_page == 'audit' %} aria-current="page"{% endif %}>
+                            <i class="ti-time" aria-hidden="true"></i>
+                            <span class="menu-text">Audit Trail</span>
+                        </a>
+                    </li>
+                    <li class="{{ 'active' if active_page == 'integration' }}">
+                        <a href="/integration" title="Integrasi &amp; Dataset"{% if active_page == 'integration' %} aria-current="page"{% endif %}>
+                            <i class="ti-plug" aria-hidden="true"></i>
+                            <span class="menu-text">Integrasi &amp; Dataset</span>
+                        </a>
+                    </li>
+                    <li class="{{ 'active' if active_page == 'simulation' }}">
+                        <a href="/simulation" title="Laboratorium Simulasi"{% if active_page == 'simulation' %} aria-current="page"{% endif %}>
+                            <i class="ti-pulse" aria-hidden="true"></i>
+                            <span class="menu-text">Laboratorium Simulasi</span>
+                        </a>
+                    </li>
+                {% endif %}
+            </ul>
+        </div>
+        <div class="sidebar-footer">
+            <span class="sidebar-footer-label">CMMS Sentinel</span>
+            <span>v{{ app_version }} · FastAPI</span>
+        </div>
+    </div>
+</nav>

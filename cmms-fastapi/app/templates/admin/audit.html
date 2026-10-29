@@ -1,0 +1,137 @@
+{% extends "layouts/app.html" %}
+{% block title %}Audit Trail{% endblock %}
+
+{% block page_description %}
+    <p class="page-description">Jejak aktivitas pengguna dan sistem untuk kebutuhan investigasi, kepatuhan, dan kontrol operasional.</p>
+{% endblock %}
+
+{% block page_actions %}
+    <a href="/users" class="btn btn-quiet btn-sm"><i class="ti-user" aria-hidden="true"></i> Pengguna</a>
+    <a href="/integration" class="btn btn-outline-secondary btn-sm"><i class="ti-plug" aria-hidden="true"></i> Integrasi</a>
+{% endblock %}
+
+{% block content %}
+{% set entity_labels = {'machine': 'Mesin', 'alert': 'Alert', 'work_order': 'Work order', 'user': 'Pengguna', 'dataset': 'Dataset', 'report': 'Laporan', 'threshold': 'Threshold', 'reading': 'Pembacaan'} %}
+<section class="summary-grid" aria-label="Ringkasan audit">
+    <article class="summary-card is-accent">
+        <span class="summary-icon"><i class="ti-files" aria-hidden="true"></i></span>
+        <div class="summary-copy"><strong>{{ summary.total }}</strong><span>Total entri</span></div>
+    </article>
+    <article class="summary-card is-accent">
+        <span class="summary-icon"><i class="ti-time" aria-hidden="true"></i></span>
+        <div class="summary-copy"><strong>{{ summary.today }}</strong><span>24 jam terakhir</span></div>
+    </article>
+    <article class="summary-card is-good">
+        <span class="summary-icon"><i class="ti-user" aria-hidden="true"></i></span>
+        <div class="summary-copy"><strong>{{ summary.user_actions }}</strong><span>Aksi pengguna</span></div>
+    </article>
+    <article class="summary-card is-warning">
+        <span class="summary-icon"><i class="ti-bolt" aria-hidden="true"></i></span>
+        <div class="summary-copy"><strong>{{ summary.system_actions }}</strong><span>Aksi sistem</span></div>
+    </article>
+    <article class="summary-card is-accent">
+        <span class="summary-icon"><i class="ti-layers" aria-hidden="true"></i></span>
+        <div class="summary-copy"><strong>{{ entities|length }}</strong><span>Jenis entitas</span></div>
+    </article>
+</section>
+
+<section class="filter-bar" aria-label="Filter audit">
+    <form method="get" action="/admin/audit" class="filter-form">
+        <div class="filter-field filter-grow">
+            <label for="audit-q">Cari aktivitas</label>
+            <div class="search-field">
+                <i class="ti-search" aria-hidden="true"></i>
+                <input type="search" class="form-control" id="audit-q" name="q" value="{{ filters.q }}"
+                       placeholder="Aksi, aktor, detail, atau ID" maxlength="100">
+            </div>
+        </div>
+        <div class="filter-field">
+            <label for="audit-entity">Entitas</label>
+            <select class="form-control" id="audit-entity" name="entity">
+                <option value="">Semua entitas</option>
+                {% for entity in entities %}
+                    <option value="{{ entity }}" {{ 'selected' if filters.entity == entity else '' }}>{{ entity_labels.get(entity, entity) }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-actions">
+            <button type="submit" class="btn btn-primary btn-sm"><i class="ti-filter" aria-hidden="true"></i> Filter</button>
+            <a href="/admin/audit" class="btn btn-quiet btn-sm">Reset</a>
+        </div>
+    </form>
+    <div class="filter-summary">
+        <span><strong>{{ pagination.total }}</strong> entri ditemukan</span>
+        <span class="muted">Halaman {{ pagination.page }} dari {{ pagination.pages }}</span>
+    </div>
+</section>
+
+<section class="card" aria-label="Jejak audit">
+    <div class="audit-list">
+        {% for entry in items %}
+            {% set is_system = entry.actor_role == 'system' %}
+            {% set icon = {'machine': 'ti-harddrives', 'alert': 'ti-bell', 'work_order': 'ti-clipboard', 'user': 'ti-user', 'dataset': 'ti-download', 'report': 'ti-bar-chart', 'threshold': 'ti-settings'}.get(entry.entity, 'ti-time') %}
+            <article class="audit-item">
+                <span class="audit-marker {{ 'is-system' if is_system else 'is-user' }}">
+                    <i class="{{ icon }}" aria-hidden="true"></i>
+                </span>
+                <div class="audit-body">
+                    <div class="audit-action">{{ entry.action }}</div>
+                    {% if entry.detail %}<p class="audit-detail">{{ entry.detail }}</p>{% endif %}
+                    <div class="audit-meta">
+                        <span><i class="{{ 'ti-bolt' if is_system else 'ti-user' }}" aria-hidden="true"></i> {{ entry.actor_name or 'Sistem' }}</span>
+                        {% if not is_system %}
+                            <span class="badge badge-soft-{{ 'accent' if entry.actor_role == 'admin' else 'info' }}">{{ status_maps.role.get(entry.actor_role, entry.actor_role) }}</span>
+                        {% endif %}
+                        <span class="audit-entity">{{ entity_labels.get(entry.entity, entry.entity) }}</span>
+                        {% if entry.entity_id %}<span><i class="ti-link" aria-hidden="true"></i> {{ entry.entity_id }}</span>{% endif %}
+                        {% if entry.ip %}<span><i class="ti-location-pin" aria-hidden="true"></i> {{ entry.ip }}</span>{% endif %}
+                    </div>
+                </div>
+                <time class="audit-time">{{ entry.ts|dt }}<br><span title="{{ entry.ts|dt }}">{{ entry.ts|relative }}</span></time>
+            </article>
+        {% else %}
+            <div class="empty-state">
+                <span class="empty-icon"><i class="ti-files" aria-hidden="true"></i></span>
+                <h3>Tidak ada jejak audit</h3>
+                <p>Belum ada aktivitas yang sesuai dengan filter. Bersihkan filter untuk melihat seluruh riwayat.</p>
+                <div class="empty-actions"><a href="/admin/audit" class="btn btn-outline-secondary btn-sm">Reset filter</a></div>
+            </div>
+        {% endfor %}
+    </div>
+</section>
+
+{% if pagination.pages > 1 %}
+    <div class="pagination-bar card">
+        <span class="pagination-info">
+            Menampilkan <strong>{{ items|length }}</strong> dari <strong>{{ pagination.total }}</strong> entri
+        </span>
+        <nav aria-label="Navigasi halaman audit">
+            <ul class="pagination">
+                <li class="page-item {{ 'disabled' if pagination.page <= 1 else '' }}">
+                    {% if pagination.page <= 1 %}
+                        <span class="page-link" aria-hidden="true"><i class="ti-angle-left"></i></span>
+                    {% else %}
+                        <a class="page-link" href="{{ page_prefix }}page={{ pagination.page - 1 }}" aria-label="Halaman sebelumnya"><i class="ti-angle-left"></i></a>
+                    {% endif %}
+                </li>
+                {% for number in pagination.numbers %}
+                    {% if number %}
+                        <li class="page-item {{ 'active' if number == pagination.page else '' }}">
+                            <a class="page-link" href="{{ page_prefix }}page={{ number }}" {{ 'aria-current="page"' if number == pagination.page else '' }}>{{ number }}</a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled"><span class="page-link">…</span></li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {{ 'disabled' if pagination.page >= pagination.pages else '' }}">
+                    {% if pagination.page >= pagination.pages %}
+                        <span class="page-link" aria-hidden="true"><i class="ti-angle-right"></i></span>
+                    {% else %}
+                        <a class="page-link" href="{{ page_prefix }}page={{ pagination.page + 1 }}" aria-label="Halaman berikutnya"><i class="ti-angle-right"></i></a>
+                    {% endif %}
+                </li>
+            </ul>
+        </nav>
+    </div>
+{% endif %}
+{% endblock %}

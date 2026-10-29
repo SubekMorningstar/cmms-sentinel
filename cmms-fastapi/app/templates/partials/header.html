@@ -1,0 +1,84 @@
+<header class="header">
+    <div class="header-bar">
+        <div class="brand">
+            <a href="/dashboard" class="logo" aria-label="CMMS Sentinel — Pusat Operasi">
+                <span class="brand-mark" aria-hidden="true"><i class="ti-pulse"></i></span>
+                <span class="brand-words"><span class="text-carolina">CMMS</span><span class="brand-name">Sentinel</span></span>
+                <span class="brand-sub">Condition Monitoring</span>
+            </a>
+        </div>
+        <div class="btn-toggle">
+            <a href="#" class="toggle-sidebar-btn" title="Perkecil atau perbesar sidebar" aria-label="Perkecil atau perbesar sidebar">
+                <i class="ti-arrow-circle-left" aria-hidden="true"></i>
+            </a>
+            <a href="#" class="slide-sidebar-btn" title="Buka menu navigasi" aria-label="Buka menu navigasi" aria-controls="sidebar" aria-expanded="false">
+                <i class="ti-menu" aria-hidden="true"></i>
+            </a>
+        </div>
+        <div class="navigation d-flex align-items-center">
+            <a href="/cbm-monitoring" class="status-pill d-none d-xl-inline-flex" title="Telemetry condition monitoring aktif">
+                <span class="status-dot" aria-hidden="true"></span> Telemetry aktif
+            </a>
+            <div class="navbar-menu d-flex">
+                <div class="menu-item">
+                    <a href="/notifications" class="btn notification-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" aria-label="Notifikasi ({{ unread_notifications }} belum dibaca)">
+                        <i class="ti-bell" aria-hidden="true"></i>
+                        {% if unread_notifications > 0 %}
+                            <span class="badge badge-danger">{{ unread_notifications if unread_notifications < 10 else '9+' }}</span>
+                        {% endif %}
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-right dropdown-alert">
+                        <li class="dropdown-header text-center">
+                            <a href="/notifications"><i class="ti-bell" aria-hidden="true"></i> Notifikasi <i class="ti-angle-right" aria-hidden="true"></i></a>
+                        </li>
+                        {% for note in notifications %}
+                            <li>
+                                <a href="{{ note.href }}">
+                                    <i class="fa {{ 'fa-bell text-warning' if not note.read_at else 'fa-check-circle' }}" aria-hidden="true"></i>
+                                    <span class="notification-copy">
+                                        {{ note.title }}
+                                        <small>{{ note.message }}</small>
+                                    </span>
+                                    <span class="notification-time">{{ note.created_at|relative }}</span>
+                                </a>
+                            </li>
+                        {% else %}
+                            <li>
+                                <a href="/notifications"><i class="fa fa-check-circle text-success" aria-hidden="true"></i> Belum ada notifikasi <span>—</span></a>
+                            </li>
+                        {% endfor %}
+                        <li class="dropdown-footer"><a href="/notifications">Lihat semua notifikasi <i class="ti-angle-right" aria-hidden="true"></i></a></li>
+                    </ul>
+                </div>
+                <div class="menu-item">
+                    <a href="#" class="btn profile-panel-toggle" data-toggle="tooltip" title="Profil, tema & sesi" aria-label="Buka panel profil dan tema" aria-controls="sidebar-right" aria-expanded="false">
+                        <i class="ti-settings" aria-hidden="true"></i>
+                    </a>
+                </div>
+                <div class="menu-item">
+                    <a href="#" class="btn btn-user" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" aria-label="Menu pengguna">
+                        <span class="avatar-initial">{{ current_user.initials }}</span>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-right dropdown-user">
+                        <li class="dropdown-header text-left">
+                            <strong>{{ current_user.nama_lengkap }}</strong><br>
+                            <small>{{ current_user.role_label }} · {{ current_user.email }}</small>
+                        </li>
+                        <li>
+                            <a href="/profile"><i class="ti-user" aria-hidden="true"></i> Profil Saya</a>
+                        </li>
+                        <li>
+                            <a href="#" class="profile-panel-toggle" aria-controls="sidebar-right" aria-expanded="false"><i class="ti-palette" aria-hidden="true"></i> Tampilan &amp; Tema</a>
+                        </li>
+                        <li>
+                            <form method="post" action="/logout">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <button type="submit" class="dropdown-item text-danger"><i class="ti-power-off" aria-hidden="true"></i> Keluar</button>
+                            </form>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</header>

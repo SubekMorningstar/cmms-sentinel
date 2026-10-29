@@ -1,0 +1,305 @@
+{% extends "layouts/app.html" %}
+{% block title %}Integrasi & Dataset{% endblock %}
+
+{% block page_description %}
+    <p class="page-description">Konfigurasi ingest telemetry IoT, pantau kesehatan sistem, dan unduh dataset proyek.</p>
+{% endblock %}
+
+{% block page_actions %}
+    <a href="/reports" class="btn btn-quiet btn-sm"><i class="ti-bar-chart" aria-hidden="true"></i> Laporan</a>
+    <a href="/admin/audit" class="btn btn-outline-secondary btn-sm"><i class="ti-files" aria-hidden="true"></i> Audit trail</a>
+{% endblock %}
+
+{% block content %}
+<section class="system-grid" aria-label="Ringkasan sistem">
+    <article class="system-tile">
+        <div class="system-tile-top">
+            <span class="system-tile-label">Pembacaan sensor</span>
+            <span class="badge badge-soft-accent"><i class="ti-pulse" aria-hidden="true"></i></span>
+        </div>
+        <strong>{{ stats.readings|intnum }}</strong>
+        <small>Total data time-series tersimpan</small>
+    </article>
+    <article class="system-tile">
+        <div class="system-tile-top">
+            <span class="system-tile-label">Mesin aktif</span>
+            <span class="badge badge-soft-info"><i class="ti-harddrives" aria-hidden="true"></i></span>
+        </div>
+        <strong>{{ active_machines|intnum }}</strong>
+        <small>{{ stats.alerts }} alert · {{ stats.work_orders }} work order</small>
+    </article>
+    <article class="system-tile">
+        <div class="system-tile-top">
+            <span class="system-tile-label">Basis data</span>
+            <span class="badge badge-soft-{{ 'good' if health.ok else 'danger' }}"><i class="ti-{{ 'check-box' if health.ok else 'alert' }}" aria-hidden="true"></i></span>
+        </div>
+        <strong>{{ 'Online' if health.ok else 'Gangguan' }}</strong>
+        <small>{{ health.database }} · MongoDB time-series</small>
+    </article>
+    <article class="system-tile">
+        <div class="system-tile-top">
+            <span class="system-tile-label">Uptime aplikasi</span>
+            <span class="badge badge-soft-info"><i class="ti-time" aria-hidden="true"></i></span>
+        </div>
+        <strong style="font-size: 1rem; line-height: 1.5;">{{ uptime }}</strong>
+        <small>Mulai {{ started_at|dt }}</small>
+    </article>
+</section>
+
+<div class="integration-grid">
+    <section class="card" aria-labelledby="api-title">
+        <div class="card-body">
+            <div class="section-head">
+                <div>
+                    <h2 id="api-title">API ingest &amp; pembacaan</h2>
+                    <p>Gateway IoT mengirim pembacaan menggunakan header <code>X-API-Key</code>. Endpoint baca menerima API key atau sesi web.</p>
+                </div>
+                <span class="badge badge-soft-{{ 'good' if api_key_length else 'danger' }}">{{ 'Terkonfigurasi' if api_key_length else 'Belum diatur' }}</span>
+            </div>
+
+            <div class="form-group">
+                <label>API key ingest</label>
+                <div class="api-key-field">
+                    <code>{{ api_key_masked }}</code>
+                    <span class="badge badge-soft-info">Masked</span>
+                </div>
+                <p class="field-hint">Hanya sebagian karakter ditampilkan. Ubah nilai <code>INGEST_API_KEY</code> pada berkas <code>.env</code> server bila perlu rotasi.</p>
+            </div>
+
+            <div class="form-group">
+                <label>Base URL</label>
+                <div class="api-key-field">
+                    <code id="base-url">{{ base_url }}</code>
+                    <button type="button" class="btn btn-quiet btn-sm copy-btn" data-copy-target="#base-url" data-copy-label="Base URL disalin.">
+                        <i class="ti-files" aria-hidden="true"></i> Salin
+                    </button>
+                </div>
+            </div>
+
+            <div class="endpoint-list" aria-label="Daftar endpoint API">
+                <div class="endpoint">
+                    <span class="method method-post">POST</span>
+                    <div><code>/api/ingest</code><small>Kirim 1–500 pembacaan untuk satu mesin (butuh API key).</small></div>
+                    <span class="badge badge-soft-warning">Key</span>
+                </div>
+                <div class="endpoint">
+                    <span class="method">GET</span>
+                    <div><code>/api/machines</code><small>Snapshot kondisi seluruh mesin aktif.</small></div>
+                    <span class="badge badge-soft-info">Baca</span>
+                </div>
+                <div class="endpoint">
+                    <span class="method">GET</span>
+                    <div><code>/api/machines/{code}/latest?hours=24</code><small>Serial waktu &amp; alert terbaru per mesin.</small></div>
+                    <span class="badge badge-soft-info">Baca</span>
+                </div>
+                <div class="endpoint">
+                    <span class="method">GET</span>
+                    <div><code>/api/alerts?status=active</code><small>Daftar alert aktif atau riwayat.</small></div>
+                    <span class="badge badge-soft-info">Baca</span>
+                </div>
+                <div class="endpoint">
+                    <span class="method">GET</span>
+                    <div><code>/api/work-orders?status=active</code><small>Work order beserta status dan tenggat.</small></div>
+                    <span class="badge badge-soft-info">Baca</span>
+                </div>
+            </div>
+
+            <div style="margin-top: 1rem;">
+                <div class="code-head">
+                    <span>Contoh pengiriman gateway</span>
+                    <button type="button" class="btn btn-quiet btn-sm copy-btn" data-copy-target="#ingest-example" data-copy-label="Contoh request disalin.">
+                        <i class="ti-files" aria-hidden="true"></i> Salin
+                    </button>
+                </div>
+                <pre class="code-block" id="ingest-example">curl -X POST "{{ base_url }}/api/ingest" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $CMMS_API_KEY" \
+  -d '{
+    "machine_code": "CNC-01",
+    "readings": [
+      {"temperature": 68.4, "vibration": 3.1, "power": 18.2, "sound": 74.5}
+    ]
+  }'</pre>
+            </div>
+
+            <div class="integration-note" style="margin-top: .9rem;">
+                <i class="ti-shield" aria-hidden="true"></i>
+                <span>API key penuh tidak pernah ditampilkan pada antarmuka. Simpan hanya pada secret manager gateway dan gunakan HTTPS di lingkungan produksi.</span>
+            </div>
+        </div>
+    </section>
+
+    <aside>
+        <section class="card">
+            <div class="card-body">
+                <div class="section-head">
+                    <div>
+                        <h2>Kesiapan sistem</h2>
+                        <p>Pemeriksaan komponen inti aplikasi.</p>
+                    </div>
+                </div>
+                <ul class="health-check-list">
+                    <li class="health-check">
+                        <span><i class="ti-server" aria-hidden="true"></i> MongoDB</span>
+                        <strong class="text-{{ 'success' if health.ok else 'danger' }}">{{ 'Terhubung' if health.ok else 'Gagal' }}</strong>
+                    </li>
+                    <li class="health-check">
+                        <span><i class="ti-pulse" aria-hidden="true"></i> Time-series readings</span>
+                        <strong class="text-{{ 'success' if stats.readings else 'warning' }}">{{ 'Aktif' if stats.readings else 'Kosong' }}</strong>
+                    </li>
+                    <li class="health-check">
+                        <span><i class="ti-key" aria-hidden="true"></i> API key ingest</span>
+                        <strong class="text-{{ 'success' if api_key_length else 'danger' }}">{{ 'Siap' if api_key_length else 'Belum diatur' }}</strong>
+                    </li>
+                    <li class="health-check">
+                        <span><i class="ti-files" aria-hidden="true"></i> Berkas dataset</span>
+                        <strong>{{ file_info|selectattr('exists')|list|length }}/{{ file_info|length }} tersedia</strong>
+                    </li>
+                    <li class="health-check">
+                        <span><i class="ti-user" aria-hidden="true"></i> Pengguna aktif</span>
+                        <strong>{{ active_users|intnum }} akun</strong>
+                    </li>
+                    <li class="health-check">
+                        <span><i class="ti-time" aria-hidden="true"></i> Zona waktu</span>
+                        <strong>{{ timezone }}</strong>
+                    </li>
+                </ul>
+            </div>
+        </section>
+
+        <section class="card" style="margin-top: var(--ui-gap);">
+            <div class="card-body">
+                <div class="section-head">
+                    <div>
+                        <h2>Nilai sensor terbaru</h2>
+                        <p>{{ stats.last_ts|dt if stats.last_ts else 'Belum ada pembacaan' }}</p>
+                    </div>
+                </div>
+                <ul class="side-list">
+                    {% for item in sensor_summary %}
+                        <li>
+                            <span class="feed-icon"><i class="fa {{ sensors[item.sensor].icon }}" aria-hidden="true"></i></span>
+                            <div class="side-list-body">
+                                <span class="side-list-title">{{ sensors[item.sensor].label }}</span>
+                                <div class="side-list-meta"><span>Terakhir {{ stats.last_ts|relative if stats.last_ts else '—' }}</span></div>
+                            </div>
+                            <span class="reading-value {{ 'is-unknown' if item.value is none else '' }}">
+                                {{ item.value|num(2) }} <span class="muted">{{ sensors[item.sensor].unit }}</span>
+                            </span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </section>
+    </aside>
+</div>
+
+<div class="integration-grid">
+    <section class="card" aria-labelledby="dataset-title">
+        <div class="card-body">
+            <div class="section-head">
+                <div>
+                    <h2 id="dataset-title">Cakupan dataset</h2>
+                    <p>Dataset demo sintetis 90 hari; telemetry gateway yang tersedia juga tersimpan di sini.</p>
+                </div>
+            </div>
+            <div class="dataset-readout">
+                <strong>{{ stats.readings|intnum }}</strong>
+                <span>pembacaan tersimpan · {{ stats.machines }} mesin</span>
+            </div>
+            <div class="dataset-range">
+                <span><i class="ti-calendar" aria-hidden="true"></i> Awal {{ stats.first_ts|dt }}</span>
+                <span><i class="ti-time" aria-hidden="true"></i> Akhir {{ stats.last_ts|dt }}</span>
+            </div>
+            <div class="file-list" style="margin-top: .9rem;">
+                {% for file in file_info %}
+                    {% set file_icon = {'sensor_readings.csv': 'ti-pulse', 'fault_scenarios.csv': 'ti-alert', 'DATASET.md': 'ti-book'}.get(file.name, 'ti-file') %}
+                    <div class="file-card">
+                        <span class="file-icon"><i class="{{ file_icon }}" aria-hidden="true"></i></span>
+                        <div class="file-body">
+                            <strong>{{ file.name }}</strong>
+                            <small>
+                                {% if file.exists %}
+                                    {% if file.size >= 1048576 %}{{ (file.size / 1048576)|round(1) }} MB{% elif file.size >= 1024 %}{{ (file.size / 1024)|round(1) }} KB{% else %}{{ file.size }} B{% endif %}
+                                    · diperbarui {{ file.modified|dt }}
+                                {% else %}
+                                    Belum tersedia — jalankan seed dataset
+                                {% endif %}
+                            </small>
+                        </div>
+                        {% if file.exists %}
+                            <a class="btn btn-quiet btn-sm" href="/integration/dataset/{{ file.name }}" aria-label="Unduh {{ file.name }}">
+                                <i class="ti-download" aria-hidden="true"></i>
+                            </a>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+
+    <section class="card" aria-labelledby="sample-title">
+        <div class="card-body">
+            <div class="section-head">
+                <div>
+                    <h2 id="sample-title">Kesehatan mesin ringkas</h2>
+                    <p>Status penyimpanan dan akses data.</p>
+                </div>
+            </div>
+            <dl class="alert-detail-list">
+                <div><dt>Koleksi</dt><dd>readings · machines · thresholds</dd></div>
+                <div><dt>Penyimpanan</dt><dd>Time-series, granularitas menit</dd></div>
+                <div><dt>Ingest terakhir</dt><dd>{{ stats.last_ts|dt }}</dd></div>
+                <div><dt>Alert tersimpan</dt><dd>{{ stats.alerts|intnum }}</dd></div>
+                <div><dt>Work order tersimpan</dt><dd>{{ stats.work_orders|intnum }}</dd></div>
+                <div><dt>Basis data</dt><dd>{{ health.database }}</dd></div>
+            </dl>
+            <div class="export-row" style="margin-top: .9rem;">
+                <a class="btn btn-outline-secondary btn-sm" href="/reports/export.csv?dataset=readings&days=14"><i class="ti-download" aria-hidden="true"></i> Ekspor pembacaan 14 hari</a>
+            </div>
+        </div>
+    </section>
+</div>
+
+<section class="card" aria-labelledby="samples-title">
+    <div class="card-body" style="padding-bottom: .4rem;">
+        <div class="section-head">
+            <div>
+                <h2 id="samples-title">Contoh pembacaan terbaru</h2>
+                <p>Delapan data terakhir dari penyimpanan time-series.</p>
+            </div>
+            <a href="/cbm-monitoring" class="btn btn-quiet btn-sm"><i class="ti-pulse" aria-hidden="true"></i> Telemetry</a>
+        </div>
+    </div>
+    <div class="table-wrap">
+        <table class="table workorder-table sample-table">
+            <thead>
+                <tr>
+                    <th scope="col">Waktu</th>
+                    <th scope="col">Mesin</th>
+                    <th scope="col">Suhu</th>
+                    <th scope="col">Getaran</th>
+                    <th scope="col">Daya</th>
+                    <th scope="col">Suara</th>
+                    <th scope="col">Sumber</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in sample_rows %}
+                    <tr>
+                        <td class="mono">{{ row.ts|dt }}</td>
+                        <td data-label="Mesin"><span class="wo-code">{{ row.machine_code }}</span></td>
+                        <td data-label="Suhu" class="reading-value">{{ row.temperature|num(2) }} °C</td>
+                        <td data-label="Getaran" class="reading-value">{{ row.vibration|num(2) }} mm/s</td>
+                        <td data-label="Daya" class="reading-value">{{ row.power|num(2) }} kW</td>
+                        <td data-label="Suara" class="reading-value">{{ row.sound|num(2) }} dBA</td>
+                        <td data-label="Sumber"><span class="badge badge-soft-{{ 'warning' if row.source == 'iot' else 'info' }}">{{ status_maps.source.get(row.source, row.source or 'dataset') }}</span></td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="7"><div class="empty-state"><p>Belum ada pembacaan sensor tersimpan.</p></div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

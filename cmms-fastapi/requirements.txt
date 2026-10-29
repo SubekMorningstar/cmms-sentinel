@@ -1,0 +1,9 @@
+fastapi==0.162.0
+uvicorn==0.54.0
+Jinja2==3.1.6
+pydantic==2.14.1
+PyMongo==4.19.0
+bcrypt==5.0.0
+python-dotenv==1.2.4
+python-multipart==0.0.32
+itsdangerous==2.2.0

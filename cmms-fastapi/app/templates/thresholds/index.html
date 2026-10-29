@@ -1,0 +1,214 @@
+{% extends "layouts/app.html" %}
+{% block title %}Threshold Sensor{% endblock %}
+
+{% block page_description %}
+    <p class="page-description">
+        Kelola ambang peringatan, kekritisan, histeresis, dan jumlah pembacaan normal untuk setiap sensor.
+    </p>
+{% endblock %}
+
+{% block page_actions %}
+    {% if machine %}
+        <a href="/assets/{{ machine._id }}" class="btn btn-outline-secondary btn-sm"><i class="ti-info-alt" aria-hidden="true"></i> Detail aset</a>
+        <a href="/cbm-monitoring?machine={{ machine.code }}" class="btn btn-primary btn-sm"><i class="ti-pulse" aria-hidden="true"></i> Monitoring</a>
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+{% if not machine %}
+    <section class="card">
+        <div class="card-body">
+            <div class="empty-state">
+                <span class="empty-icon"><i class="ti-settings" aria-hidden="true"></i></span>
+                <h3>Belum ada mesin aktif</h3>
+                <p>Tambahkan aset terlebih dahulu untuk mengatur ambang batas sensor dan alert otomatis.</p>
+                {% if is_admin %}<div class="empty-actions"><a href="/assets/new" class="btn btn-primary btn-sm">Tambah aset</a></div>{% endif %}
+            </div>
+        </div>
+    </section>
+{% else %}
+    <div class="monitor-toolbar">
+        <form method="get" action="/thresholds" class="monitor-toolbar-main">
+            <div class="machine-select">
+                <label for="threshold-machine">Mesin</label>
+                <select class="form-control" id="threshold-machine" name="machine" data-auto-submit>
+                    {% for item in machines %}
+                        <option value="{{ item.code }}" {{ 'selected' if item.code == machine.code else '' }}>{{ item.code }} — {{ item.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+        <div class="monitor-toolbar-side">
+            <span class="state-pill {{ 'is-good' if configured >= 4 else 'is-warning' }}">{{ configured }}/4 sensor dikonfigurasi</span>
+            <span class="state-pill is-{{ snapshot.health.key }}">Health {{ snapshot.score|num(0) }}</span>
+            {% if not can_edit %}<span class="badge badge-soft-info"><i class="ti-lock" aria-hidden="true"></i> Hanya baca</span>{% endif %}
+        </div>
+    </div>
+
+    {% if error %}
+        <div class="form-error-banner" role="alert">
+            <i class="ti-alert" aria-hidden="true"></i>
+            <span>{{ error }}</span>
+        </div>
+    {% endif %}
+
+    <form method="post" action="/thresholds/{{ machine._id }}" data-threshold-form data-submit-once>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="split-8-4">
+            <div class="grid-2">
+                {% for row in rows %}
+                    {% set threshold = row.threshold %}
+                    {% set scale = (threshold.critical or 1) * 1.2 %}
+                    <article class="threshold-card sensor-{{ row.sensor }}"
+                             data-threshold-card data-sensor="{{ row.sensor }}" data-current="{{ row.value if row.value is not none else 0 }}">
+                        <div class="threshold-head">
+                            <div class="threshold-sensor">
+                                <span class="sensor-icon"><i class="fa {{ row.meta.icon }}" aria-hidden="true"></i></span>
+                                <div>
+                                    <h3>{{ row.meta.label }}</h3>
+                                    <small>{{ row.meta.hint }} · {{ row.meta.unit }}</small>
+                                </div>
+                            </div>
+                            <div class="threshold-current">
+                                <strong>{{ row.value|num(1) }}</strong>
+                                <span class="state-pill is-{{ row.state }}">{{ {'normal': 'Normal', 'warning': 'Peringatan', 'critical': 'Kritis', 'unknown': 'Tanpa data'}.get(row.state, row.state) }}</span>
+                            </div>
+                        </div>
+                        <div class="threshold-body">
+                            <div class="range-preview" data-threshold-preview role="img" aria-label="Posisi nilai saat ini terhadap ambang batas">
+                                <span class="range-preview-warning" data-threshold-warning style="left: {{ row.warning_pct }}%;"></span>
+                                <span class="range-preview-critical" data-threshold-critical style="left: {{ row.critical_pct }}%;"></span>
+                                <span class="range-preview-value" data-threshold-value style="left: {{ row.meter }}%;"></span>
+                            </div>
+                            <div class="threshold-meta">
+                                <span><i class="ti-flag" aria-hidden="true"></i> Peringatan <strong>{{ threshold.warning|num(1) }}</strong> {{ row.meta.unit }}</span>
+                                <span><i class="ti-alert" aria-hidden="true"></i> Kritis <strong>{{ threshold.critical|num(1) }}</strong> {{ row.meta.unit }}</span>
+                                <span data-threshold-range>Skala 0 – {{ scale|num(1) }}</span>
+                            </div>
+
+                            <div class="threshold-editor">
+                                <div class="form-group">
+                                    <label for="{{ row.sensor }}-warning">Batas peringatan</label>
+                                    <input type="number" class="form-control" id="{{ row.sensor }}-warning" name="{{ row.sensor }}_warning"
+                                           value="{{ threshold.warning }}" step="0.01" min="0.01" required {{ 'disabled' if not can_edit else '' }}>
+                                </div>
+                                <div class="form-group">
+                                    <label for="{{ row.sensor }}-critical">Batas kritis</label>
+                                    <input type="number" class="form-control" id="{{ row.sensor }}-critical" name="{{ row.sensor }}_critical"
+                                           value="{{ threshold.critical }}" step="0.01" min="0.02" required {{ 'disabled' if not can_edit else '' }}>
+                                </div>
+                                <div class="form-group">
+                                    <label for="{{ row.sensor }}-hysteresis">Histeresis</label>
+                                    <input type="number" class="form-control" id="{{ row.sensor }}-hysteresis" name="{{ row.sensor }}_hysteresis"
+                                           value="{{ threshold.hysteresis }}" step="0.01" min="0" {{ 'disabled' if not can_edit else '' }}>
+                                </div>
+                                <div class="form-group">
+                                    <label for="{{ row.sensor }}-normal">Reset normal</label>
+                                    <input type="number" class="form-control" id="{{ row.sensor }}-normal" name="{{ row.sensor }}_normal"
+                                           value="{{ threshold.normal_reset_readings }}" step="1" min="1" max="10" {{ 'disabled' if not can_edit else '' }}>
+                                </div>
+                            </div>
+
+                            <div class="threshold-meta">
+                                <label class="switch">
+                                    <input type="checkbox" name="{{ row.sensor }}_enabled" {{ 'checked' if threshold.enabled else '' }} {{ 'disabled' if not can_edit else '' }}>
+                                    <span class="switch-track" aria-hidden="true"></span>
+                                    <span class="switch-label">Aktifkan evaluasi sensor</span>
+                                </label>
+                                <span><i class="ti-server" aria-hidden="true"></i> Score {{ row.score|num(0) }}</span>
+                                {% if row.headroom is not none %}
+                                    <span>
+                                        <i class="ti-arrow-up" aria-hidden="true"></i>
+                                        {% if row.headroom >= 0 %}Sisa {{ row.headroom|num(1) }} {{ row.meta.unit }} ke batas kritis{% else %}Melebihi batas kritis {{ (row.headroom * -1)|num(1) }} {{ row.meta.unit }}{% endif %}
+                                    </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </article>
+                {% endfor %}
+            </div>
+
+            <aside>
+                <section class="card form-side-card">
+                    <div class="card-body">
+                        <div class="section-head">
+                            <div>
+                                <h2>Ringkasan</h2>
+                                <p>{{ machine.code }} · {{ machine.name }}</p>
+                            </div>
+                            <div class="health-ring ring-sm is-{{ snapshot.health.key }}" style="--ring-value: {{ snapshot.score or 0 }};">
+                                <span class="ring-score">{{ snapshot.score|num(0) }}</span>
+                                <span class="ring-caption">Score</span>
+                            </div>
+                        </div>
+                        <div class="threshold-summary">
+                            <span><strong>{{ configured }} dari 4</strong> sensor memiliki konfigurasi tersimpan.</span>
+                            <span>Pembacaan terakhir: <strong>{{ latest.ts|dt if latest else 'Belum ada data' }}</strong></span>
+                            <span>Alert aktif: <strong>{{ snapshot.alert_count }}</strong> · Work order: <strong>{{ snapshot.wo_count }}</strong></span>
+                        </div>
+                        <a href="/cbm-monitoring?machine={{ machine.code }}" class="btn btn-outline-secondary btn-sm btn-block">
+                            <i class="ti-pulse" aria-hidden="true"></i> Lihat telemetry
+                        </a>
+                    </div>
+                </section>
+
+                <section class="card form-side-card">
+                    <div class="card-body">
+                        <h2 class="eyebrow">Panduan threshold</h2>
+                        <ul class="threshold-guide">
+                            <li><i class="ti-check-box" aria-hidden="true"></i><span>Batas kritis harus lebih besar dari batas peringatan.</span></li>
+                            <li><i class="ti-check-box" aria-hidden="true"></i><span>Histeresis mencegah alert berkedip saat nilai berada di sekitar ambang.</span></li>
+                            <li><i class="ti-check-box" aria-hidden="true"></i><span>Reset normal menentukan jumlah pembacaan normal sebelum alert ditutup otomatis.</span></li>
+                            <li><i class="ti-shield" aria-hidden="true"></i><span>Perubahan hanya dapat dilakukan Administrator dan tercatat pada audit trail.</span></li>
+                        </ul>
+                    </div>
+                </section>
+
+                <section class="card form-side-card">
+                    <div class="card-body">
+                        <div class="section-head">
+                            <div>
+                                <h2>Alert terbaru</h2>
+                                <p>Riwayat peringatan mesin.</p>
+                            </div>
+                            <a href="/alerts?machine={{ machine.code }}" class="btn btn-quiet btn-sm">Semua</a>
+                        </div>
+                        <ul class="side-list">
+                            {% for alert in recent_alerts %}
+                                <li>
+                                    <span class="feed-icon {{ 'is-good' if alert.status == 'resolved' else ('is-danger' if alert.level == 'critical' else 'is-warning') }}">
+                                        <i class="ti-bell" aria-hidden="true"></i>
+                                    </span>
+                                    <div class="side-list-body">
+                                        <a class="side-list-title" href="/alerts/{{ alert.id }}">{{ sensors[alert.sensor].label if alert.sensor in sensors else alert.sensor }} · {{ status_maps.alert_level.get(alert.level, alert.level) }}</a>
+                                        <span class="side-list-meta">{{ alert.message }}</span>
+                                        <span class="side-list-time">{{ alert.last_seen|relative }} · {{ status_maps.alert_status.get(alert.status, alert.status) }}</span>
+                                    </div>
+                                </li>
+                            {% else %}
+                                <li class="feed-empty">Belum ada alert untuk mesin ini.</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </section>
+            </aside>
+        </div>
+
+        {% if can_edit %}
+            <div class="threshold-form-actions">
+                <span class="meta">
+                    Perubahan diterapkan pada evaluasi alert berikutnya. Histeresis dan reset normal membantu mencegah flapping.
+                </span>
+                <div class="filter-actions">
+                    <a href="/thresholds?machine={{ machine.code }}" class="btn btn-quiet">Batalkan</a>
+                    <button type="submit" class="btn btn-primary"><i class="ti-save" aria-hidden="true"></i> Simpan threshold</button>
+                </div>
+            </div>
+        {% else %}
+            <div class="threshold-form-actions">
+                <span class="meta"><i class="ti-lock" aria-hidden="true"></i> Hanya Administrator yang dapat mengubah threshold. Hubungi administrator bila perlu penyesuaian.</span>
+            </div>
+        {% endif %}
+    </form>
+{% endif %}
+{% endblock %}

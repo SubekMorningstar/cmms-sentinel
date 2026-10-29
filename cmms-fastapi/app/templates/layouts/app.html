@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="CMMS Sentinel — pusat kendali pemeliharaan berbasis kondisi untuk aset produksi.">
+    <meta name="theme-color" content="#e3edff">
+    <title>{% block title %}{{ active_page_title or nav_labels.get(active_page, 'Pusat Operasi') }}{% endblock %} · {{ app_name }}</title>
+
+    <link rel="apple-touch-icon" sizes="76x76" href="/static/theme/img/apple-icon.png">
+    <link rel="icon" type="image/png" sizes="96x96" href="/static/theme/img/favicon.png">
+    <link rel="stylesheet" href="/static/theme/css/siqtheme.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/css/app.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/theme/vendors/apexcharts/apexcharts.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/css/cmms.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/css/glass-v3.css?v={{ app_version }}">
+    {% block page_styles %}{% endblock %}
+</head>
+
+<body class="theme-glass" data-page="{{ active_page|default('') }}">
+
+    <a class="skip-link" href="#main-content">Lewati ke konten utama</a>
+
+    <div class="grid-wrapper">
+        {% include "partials/header.html" %}
+        {% include "partials/sidebar.html" %}
+
+        <main class="main" id="main-content" tabindex="-1">
+            <header class="page-head">
+                <div class="page-head-copy">
+                    <nav aria-label="Breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item">
+                                <a href="/dashboard"><i class="ti-home" aria-hidden="true"></i> Ringkasan</a>
+                            </li>
+                            {% if active_page and active_page != 'dashboard' %}
+                                {% if active_page_title %}
+                                    <li class="breadcrumb-item">
+                                        <a href="{{ nav_urls.get(active_page, '/dashboard') }}">{{ nav_labels.get(active_page, active_page) }}</a>
+                                    </li>
+                                    <li class="breadcrumb-item active" aria-current="page">{{ active_page_title }}</li>
+                                {% else %}
+                                    <li class="breadcrumb-item active" aria-current="page">{{ nav_labels.get(active_page, active_page) }}</li>
+                                {% endif %}
+                            {% endif %}
+                        </ol>
+                    </nav>
+                    <p class="page-kicker">
+                        <span class="page-kicker-dot" aria-hidden="true"></span>
+                        {{ shift }} · {{ now|local_day }}
+                    </p>
+                    <h1 class="page-title">{{ active_page_title or nav_labels.get(active_page, 'Pusat Operasi') }}</h1>
+                    {% block page_description %}{% endblock %}
+                </div>
+                <div class="page-head-actions">
+                    {% block page_actions %}{% endblock %}
+                </div>
+            </header>
+
+            {% include "partials/flash.html" %}
+
+            {% block content %}{% endblock %}
+        </main>
+
+        {% include "partials/footer.html" %}
+        {% include "partials/panel.html" %}
+
+        <div id="overlay"></div>
+    </div>
+
+    <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="false"></div>
+
+    <script src="/static/theme/scripts/siqtheme.js?v={{ app_version }}"></script>
+    <script src="/static/js/app.js?v={{ app_version }}"></script>
+    {% block vendor_scripts %}{% endblock %}
+    <script src="/static/js/cmms.js?v={{ app_version }}"></script>
+    {% block page_scripts %}{% endblock %}
+</body>
+</html>

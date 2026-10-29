@@ -1,0 +1,402 @@
+{% extends "layouts/app.html" %}
+{% block title %}{{ wo.code }}{% endblock %}
+
+{% block page_description %}
+    <p class="page-description">Detail pekerjaan, penugasan, riwayat aktivitas, dan penyelesaian work order.</p>
+{% endblock %}
+
+{% block page_actions %}
+    <a href="/work-orders" class="btn btn-quiet btn-sm"><i class="ti-arrow-left" aria-hidden="true"></i> Daftar WO</a>
+    <a href="/assets/{{ machine._id }}" class="btn btn-outline-secondary btn-sm"><i class="ti-harddrives" aria-hidden="true"></i> {{ machine.code }}</a>
+{% endblock %}
+
+{% block content %}
+{% set is_closed = wo.status in ['resolved', 'cancelled'] %}
+{% set is_overdue = wo.due_at and wo.due_at < now and not is_closed %}
+
+<section class="wo-hero" aria-labelledby="wo-title">
+    <div class="wo-hero-top">
+        <span class="wo-hero-code">{{ wo.code }}</span>
+        <span class="state-pill is-{{ wo.status }}">{{ status_labels.get(wo.status, wo.status) }}</span>
+        <span class="priority-mark priority-{{ wo.priority }}">{{ status_maps.priority.get(wo.priority, wo.priority) }}</span>
+        <span class="source-tag"><i class="ti-{{ 'bolt' if wo.source == 'automatic' else 'pencil' }}" aria-hidden="true"></i> {{ status_maps.source.get(wo.source, wo.source) }}</span>
+        {% if wo.simulation_run_id %}<span class="badge badge-soft-info">Data simulasi · {{ wo.scenario_id|replace('-', ' ') }} · run {{ wo.simulation_run_id }}</span>{% endif %}
+        {% if wo.source == 'preventive' %}<span class="badge badge-soft-info">Data simulasi · jadwal aset virtual</span>{% endif %}
+        {% if is_overdue %}<span class="overdue-tag"><i class="ti-timer" aria-hidden="true"></i> Melewati tenggat</span>{% endif %}
+    </div>
+    <h2 class="wo-hero-title" id="wo-title">{{ wo.title }}</h2>
+    <div class="wo-hero-meta">
+        <span><i class="ti-harddrives" aria-hidden="true"></i> {{ machine.code }} · {{ machine.name }}</span>
+        <span><i class="ti-location-pin" aria-hidden="true"></i> {{ machine.location }}</span>
+        <span><i class="ti-user" aria-hidden="true"></i> {{ wo.assigned_name or 'Belum ditugaskan' }}</span>
+        <span><i class="ti-time" aria-hidden="true"></i> Due {{ wo.due_at|dt }}</span>
+    </div>
+    {% if wo.status == 'resolved' %}
+        <div class="wo-hero-meta">
+            <span><i class="ti-check-box" aria-hidden="true"></i> Selesai {{ wo.resolved_at|dt }}</span>
+            <span><i class="ti-timer" aria-hidden="true"></i> Downtime {{ wo.downtime_minutes|intnum }} menit</span>
+        </div>
+    {% endif %}
+</section>
+
+{% if not is_closed %}
+    <div class="status-flow" aria-label="Alur status work order">
+        <span class="step {{ 'done' if wo.status in ['in_progress', 'awaiting_review'] else 'current' if wo.status == 'pending' else 'done' }}">
+            <i class="ti-time" aria-hidden="true"></i> Menunggu
+        </span>
+        <span class="step {{ 'current' if wo.status == 'in_progress' else 'done' if wo.status in ['awaiting_review', 'resolved'] else '' }}">
+            <i class="ti-settings" aria-hidden="true"></i> Dikerjakan
+        </span>
+        <span class="step {{ 'current' if wo.status == 'awaiting_review' else 'done' if wo.status == 'resolved' else '' }}">
+            <i class="ti-time" aria-hidden="true"></i> Menunggu tinjauan
+        </span>
+        <span class="step {{ 'done' if wo.status == 'resolved' else '' }}">
+            <i class="ti-check-box" aria-hidden="true"></i> Selesai
+        </span>
+        {% if is_admin %}<span class="step"><i class="ti-close" aria-hidden="true"></i> Dibatalkan</span>{% endif %}
+    </div>
+{% endif %}
+
+{% if is_overdue %}
+    <div class="wo-priority-banner is-overdue">
+        <i class="ti-alert" aria-hidden="true"></i>
+        <div><strong>Work order melewati tenggat.</strong> Selesaikan pekerjaan atau perbarui status secepatnya untuk menjaga kepatuhan SLA.</div>
+    </div>
+{% elif wo.priority == 'critical' and not is_closed %}
+    <div class="wo-priority-banner">
+        <i class="ti-flag" aria-hidden="true"></i>
+        <div><strong>Prioritas kritis.</strong> Koordinasikan dengan supervisor dan pastikan spare part serta izin kerja tersedia.</div>
+    </div>
+{% endif %}
+
+<div class="split-8-4">
+    <div>
+        <section class="card" aria-labelledby="wo-description-title">
+            <div class="card-body">
+                <div class="section-head">
+                    <div>
+                        <h2 id="wo-description-title">Deskripsi pekerjaan</h2>
+                        <p>{{ status_maps.wo_type.get(wo.type, wo.type) }} · dibuat oleh {{ wo.created_by_name or 'Sistem' }}</p>
+                    </div>
+                    <span class="badge badge-soft-info">{{ wo.created_at|dt }}</span>
+                </div>
+                <div class="wo-description">{{ wo.description }}</div>
+                {% if wo.status == 'resolved' and wo.resolution_notes %}
+                    <div class="threshold-summary">
+                        <strong>Catatan penyelesaian</strong>
+                        <span>{{ wo.resolution_notes }}</span>
+                    </div>
+                {% endif %}
+            </div>
+        </section>
+
+        <section class="card" aria-labelledby="wo-checklist-title">
+            <div class="card-body">
+                <div class="section-head">
+                    <div>
+                        <h2 id="wo-checklist-title">Checklist &amp; hasil pemeriksaan</h2>
+                        <p>{{ wo.checklist|selectattr('done')|list|length if wo.checklist else 0 }} dari {{ wo.checklist|length if wo.checklist else 0 }} langkah selesai</p>
+                    </div>
+                </div>
+                <ol class="list-unstyled">
+                    {% for step in wo.checklist %}
+                        <li class="d-flex align-items-center justify-content-between py-2">
+                            <span>{{ step.label }}</span>
+                            {% if can_act and wo.status == 'in_progress' %}
+                                <form method="post" action="/work-orders/{{ wo.id }}/checklist/{{ loop.index0 }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <button class="btn btn-{{ 'success' if step.done else 'outline-secondary' }} btn-sm" type="submit">
+                                        {{ 'Selesai' if step.done else 'Tandai selesai' }}
+                                    </button>
+                                </form>
+                            {% else %}
+                                <span class="state-pill is-{{ 'resolved' if step.done else 'pending' }}">{{ 'Selesai' if step.done else 'Belum' }}</span>
+                            {% endif %}
+                        </li>
+                    {% else %}
+                        <li class="field-hint">Checklist belum ditentukan.</li>
+                    {% endfor %}
+                </ol>
+                {% if wo.inspection_result %}
+                    <div class="threshold-summary">
+                        <strong>Hasil teknisi</strong>
+                        <span>{{ {'completed': 'Pekerjaan selesai', 'issue_found': 'Temuan diperbaiki', 'follow_up': 'Perlu tindak lanjut'}.get(wo.inspection_result, wo.inspection_result) }}</span>
+                        <p>{{ wo.resolution_notes }}</p>
+                    </div>
+                {% endif %}
+                {% if wo.review_outcome %}
+                    <div class="threshold-summary">
+                        <strong>Hasil tinjauan admin</strong>
+                        <span>{{ {'confirmed_issue': 'Gangguan terkonfirmasi dan ditangani', 'no_issue': 'Tidak ditemukan gangguan', 'monitor': 'Lanjutkan pemantauan'}.get(wo.review_outcome, wo.review_outcome) }}</span>
+                    </div>
+                {% endif %}
+            </div>
+        </section>
+
+        <section class="card" aria-labelledby="wo-parts-title">
+            <div class="card-body">
+                <div class="section-head">
+                    <div>
+                        <h2 id="wo-parts-title">Suku cadang</h2>
+                        <p>Penggunaan stok dicatat pada work order ini.</p>
+                    </div>
+                    <a href="/inventory" class="btn btn-quiet btn-sm">Persediaan</a>
+                </div>
+                {% if wo.parts_used %}
+                    <ul>
+                        {% for part in wo.parts_used %}
+                            <li>{{ part.part_code }} · {{ part.name }} — {{ part.quantity }} {{ part.unit }}</li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="field-hint">Belum ada suku cadang yang dicatat.</p>
+                {% endif %}
+                {% if can_act and wo.status == 'in_progress' and inventory_items %}
+                    <form method="post" action="/work-orders/{{ wo.id }}/parts" class="form-grid">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <div class="form-group">
+                            <label for="part-id">Suku cadang</label>
+                            <select class="form-control" id="part-id" name="part_id" required>
+                                {% for part in inventory_items %}
+                                    <option value="{{ part._id }}">{{ part.part_code }} · {{ part.name }} (stok {{ part.on_hand }} {{ part.unit }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="part-quantity">Jumlah</label>
+                            <input class="form-control" id="part-quantity" type="number" name="quantity" min="1" max="10000" value="1" required>
+                        </div>
+                        <div class="form-group align-self-end">
+                            <button class="btn btn-outline-secondary btn-sm" type="submit">Catat pemakaian</button>
+                        </div>
+                    </form>
+                {% endif %}
+            </div>
+        </section>
+
+        <section class="card" aria-labelledby="wo-timeline-title">
+            <div class="card-body">
+                <div class="section-head">
+                    <div>
+                        <h2 id="wo-timeline-title">Timeline aktivitas</h2>
+                        <p>{{ wo.activities|length if wo.activities else 0 }} aktivitas tercatat.</p>
+                    </div>
+                </div>
+                <div class="timeline">
+                    {% for activity in wo.activities %}
+                        {% set marker = 'is-resolved' if activity.action == 'resolved' else ('is-cancelled' if activity.action == 'cancelled' else ('is-start' if activity.action == 'created' else '')) %}
+                        {% set icon = {'created': 'ti-plus', 'started': 'ti-settings', 'status_changed': 'ti-reload', 'resolved': 'ti-check-box', 'cancelled': 'ti-close', 'assigned': 'ti-user', 'note': 'ti-write'}.get(activity.action, 'ti-time') %}
+                        {% set action_label = {'created': 'Work order dibuat', 'started': 'Mulai dikerjakan', 'submitted_for_review': 'Dikirim untuk tinjauan', 'returned_for_rework': 'Dikembalikan untuk perbaikan', 'status_changed': 'Status diperbarui', 'resolved': 'Work order disetujui dan diselesaikan', 'cancelled': 'Work order dibatalkan', 'assigned': 'Penugasan diperbarui', 'note': 'Catatan ditambahkan', 'checklist': 'Checklist diperbarui', 'part_used': 'Suku cadang digunakan'}.get(activity.action, activity.action) %}
+                        <div class="timeline-item">
+                            <span class="timeline-marker {{ marker }}"><i class="{{ icon }}" aria-hidden="true"></i></span>
+                            <div class="timeline-body">
+                                <div class="timeline-head">
+                                    <span class="timeline-actor">{{ activity.actor }}</span>
+                                    <span class="timeline-action">{{ action_label }}</span>
+                                    <time class="timeline-time">{{ activity.ts|dt }}</time>
+                                </div>
+                                {% if activity.note %}<p class="timeline-note">{{ activity.note }}</p>{% endif %}
+                                {% if activity.status %}
+                                    <span class="state-pill is-{{ activity.status }}">{{ status_labels.get(activity.status, activity.status) }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="feed-empty">Belum ada aktivitas pada work order ini.</div>
+                    {% endfor %}
+                </div>
+
+                {% if not is_closed %}
+                    <form method="post" action="/work-orders/{{ wo.id }}/note" class="note-composer" data-submit-once>
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <label for="wo-note">Tambahkan catatan pekerjaan</label>
+                        <textarea class="form-control" id="wo-note" name="note" rows="3" required minlength="3" maxlength="1000"
+                                  placeholder="Progres, kendala, kebutuhan spare part, atau hasil inspeksi."></textarea>
+                        <div class="filter-actions">
+                            <button type="submit" class="btn btn-outline-secondary btn-sm"><i class="ti-write" aria-hidden="true"></i> Kirim catatan</button>
+                        </div>
+                    </form>
+                {% endif %}
+            </div>
+        </section>
+
+        {% if related_alerts %}
+            <section class="card" aria-labelledby="wo-alert-title">
+                <div class="card-body">
+                    <div class="section-head">
+                        <div>
+                            <h2 id="wo-alert-title">Alert terkait mesin</h2>
+                            <p>Peringatan sensor terbaru dari aset yang sama.</p>
+                        </div>
+                        <a href="/alerts?machine={{ machine.code }}" class="btn btn-quiet btn-sm">Semua</a>
+                    </div>
+                    <div class="feed-list">
+                        {% for alert in related_alerts %}
+                            <div class="feed-item">
+                                <span class="feed-icon {{ 'is-good' if alert.status == 'resolved' else ('is-danger' if alert.level == 'critical' else 'is-warning') }}">
+                                    <i class="ti-bell" aria-hidden="true"></i>
+                                </span>
+                                <div class="feed-body">
+                                    <p class="feed-title">
+                                        <a href="/alerts/{{ alert.id }}">{{ sensors[alert.sensor].label if alert.sensor in sensors else alert.sensor }} · {{ status_maps.alert_level.get(alert.level, alert.level) }}</a>
+                                    </p>
+                                    <div class="feed-meta">
+                                        <span>{{ alert.message }}</span>
+                                        <span>{{ alert.value|num(1) }} {{ alert.unit }}</span>
+                                    </div>
+                                </div>
+                                <time class="feed-time">{{ alert.last_seen|relative }}</time>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </section>
+        {% endif %}
+    </div>
+
+    <aside>
+        <section class="card form-side-card">
+            <div class="card-body">
+                <div class="section-head">
+                    <div>
+                        <h2>Informasi</h2>
+                        <p>Atribut pekerjaan.</p>
+                    </div>
+                </div>
+                <dl class="meta-list">
+                    <div><dt>Mesin</dt><dd><a href="/assets/{{ machine._id }}">{{ machine.code }} · {{ machine.name }}</a></dd></div>
+                    <div><dt>Lokasi</dt><dd>{{ machine.location }}</dd></div>
+                    <div><dt>Jenis</dt><dd>{{ status_maps.wo_type.get(wo.type, wo.type) }}</dd></div>
+                    <div><dt>Prioritas</dt><dd>{{ status_maps.priority.get(wo.priority, wo.priority) }}</dd></div>
+                    <div><dt>Status</dt><dd>{{ status_labels.get(wo.status, wo.status) }}</dd></div>
+                    <div><dt>Sumber</dt><dd>{{ status_maps.source.get(wo.source, wo.source) }}</dd></div>
+                    {% if wo.sensor %}
+                        <div><dt>Sensor</dt><dd>{{ sensors[wo.sensor].label if wo.sensor in sensors else wo.sensor }}</dd></div>
+                    {% endif %}
+                    <div><dt>Dibuat</dt><dd>{{ wo.created_at|dt }}</dd></div>
+                    <div><dt>Tenggat</dt><dd class="{{ 'text-danger' if is_overdue else '' }}">{{ wo.due_at|dt }}</dd></div>
+                    {% if wo.started_at %}<div><dt>Mulai</dt><dd>{{ wo.started_at|dt }}</dd></div>{% endif %}
+                    {% if wo.resolved_at %}<div><dt>Selesai</dt><dd>{{ wo.resolved_at|dt }}</dd></div>{% endif %}
+                    <div><dt>Pembuat</dt><dd>{{ wo.created_by_name or 'Sistem' }}</dd></div>
+                    <div><dt>Teknisi</dt><dd>{{ wo.assigned_name or 'Belum ditugaskan' }}</dd></div>
+                </dl>
+            </div>
+        </section>
+
+        {% if can_act and allowed_statuses %}
+            <section class="card form-side-card" aria-labelledby="wo-action-title">
+                <div class="card-body">
+                    <div class="section-head">
+                        <div>
+                            <h2 id="wo-action-title">Perbarui status</h2>
+                            <p>Status saat ini: {{ status_labels.get(wo.status, wo.status) }}.</p>
+                        </div>
+                    </div>
+                    <form method="post" action="/work-orders/{{ wo.id }}/status" data-wo-transition data-submit-once>
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <div class="form-group">
+                            <label for="wo-next-status">Status berikutnya</label>
+                            <select class="form-control" id="wo-next-status" name="status" data-status-select required>
+                                <option value="" selected disabled>Pilih status</option>
+                                {% for status in allowed_statuses %}
+                                    <option value="{{ status }}">{{ status_labels.get(status, status) }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="toggle-panel" data-resolve-panel>
+                            <div class="form-group">
+                                <label for="wo-downtime">Downtime mesin (jam)</label>
+                                <input type="number" class="form-control" id="wo-downtime" name="downtime_hours" min="0" max="720" step="0.1"
+                                       value="0" inputmode="decimal" disabled>
+                                <p class="field-hint">Estimasi total downtime yang disebabkan pekerjaan ini.</p>
+                            </div>
+                            {% if 'awaiting_review' in allowed_statuses %}
+                                <div class="form-group">
+                                    <label for="wo-inspection-result">Hasil pemeriksaan</label>
+                                    <select class="form-control" id="wo-inspection-result" name="inspection_result">
+                                        <option value="">Pilih hasil</option>
+                                        <option value="completed">Pekerjaan selesai</option>
+                                        <option value="issue_found">Temuan diperbaiki</option>
+                                        <option value="follow_up">Perlu tindak lanjut</option>
+                                    </select>
+                                </div>
+                            {% endif %}
+                            {% if is_admin and wo.status == 'awaiting_review' %}
+                                <div class="form-group">
+                                    <label for="wo-review-outcome">Keputusan tinjauan</label>
+                                    <select class="form-control" id="wo-review-outcome" name="review_outcome">
+                                        <option value="">Pilih keputusan</option>
+                                        <option value="confirmed_issue">Gangguan terkonfirmasi dan ditangani</option>
+                                        <option value="no_issue">Tidak ditemukan gangguan</option>
+                                        <option value="monitor">Lanjutkan pemantauan</option>
+                                    </select>
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="form-group">
+                            <label for="wo-transition-note">Catatan</label>
+                            <textarea class="form-control" id="wo-transition-note" name="notes" rows="4" maxlength="2000"
+                                      data-transition-note placeholder="Wajib untuk hasil pekerjaan, persetujuan, pengembalian, atau pembatalan."></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block"><i class="ti-reload" aria-hidden="true"></i>
+                            {{ 'Kirim untuk tinjauan' if 'awaiting_review' in allowed_statuses else ('Setujui dan selesaikan' if 'resolved' in allowed_statuses else 'Simpan perubahan status') }}
+                        </button>
+                    </form>
+                </div>
+            </section>
+        {% elif is_closed %}
+            <section class="card form-side-card">
+                <div class="card-body">
+                    <div class="section-head">
+                        <div>
+                            <h2>Work order ditutup</h2>
+                            <p>{{ 'Diselesaikan' if wo.status == 'resolved' else 'Dibatalkan' }} {{ (wo.resolved_at or wo.cancelled_at)|dt }}.</p>
+                        </div>
+                    </div>
+                    {% if wo.resolution_notes %}
+                        <p class="field-hint">{{ wo.resolution_notes }}</p>
+                    {% endif %}
+                    <a href="/work-orders/new" class="btn btn-outline-secondary btn-sm btn-block"><i class="ti-plus" aria-hidden="true"></i> Work order baru</a>
+                </div>
+            </section>
+        {% endif %}
+
+        {% if can_assign and not is_closed %}
+            <section class="card form-side-card" aria-labelledby="wo-assign-title">
+                <div class="card-body">
+                    <div class="section-head">
+                        <div>
+                            <h2 id="wo-assign-title">Penugasan</h2>
+                            <p>Ubah teknisi penanggung jawab.</p>
+                        </div>
+                    </div>
+                    <form method="post" action="/work-orders/{{ wo.id }}/assign" data-submit-once>
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <div class="form-group">
+                            <label for="wo-assignee">Teknisi</label>
+                            <select class="form-control" id="wo-assignee" name="assigned_to">
+                                <option value="">Belum ditugaskan</option>
+                                {% for assignee in assignees %}
+                                    <option value="{{ assignee._id }}" {{ 'selected' if wo.assigned_name == assignee.nama_lengkap else '' }}>{{ assignee.nama_lengkap }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-outline-secondary btn-sm btn-block"><i class="ti-user" aria-hidden="true"></i> Simpan penugasan</button>
+                    </form>
+                </div>
+            </section>
+        {% endif %}
+
+        <section class="card form-side-card">
+            <div class="card-body">
+                <h2 class="eyebrow">Aksi cepat</h2>
+                <div class="quick-actions">
+                    <a href="/cbm-monitoring?machine={{ machine.code }}" class="btn btn-outline-secondary btn-sm"><i class="ti-pulse" aria-hidden="true"></i> Telemetry</a>
+                    <a href="/alerts?machine={{ machine.code }}" class="btn btn-outline-secondary btn-sm"><i class="ti-bell" aria-hidden="true"></i> Alert mesin</a>
+                    <a href="/thresholds?machine={{ machine.code }}" class="btn btn-outline-secondary btn-sm"><i class="ti-settings" aria-hidden="true"></i> Threshold</a>
+                </div>
+            </div>
+        </section>
+    </aside>
+</div>
+{% endblock %}

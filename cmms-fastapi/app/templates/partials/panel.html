@@ -1,0 +1,46 @@
+<aside id="sidebar-right" aria-label="Panel pengguna">
+    <div class="sidebar-right-container">
+        <div class="pane-header">
+            <h3><i class="ti-user" aria-hidden="true"></i> Panel Pengguna</h3>
+            <button type="button" class="profile-panel-toggle panel-close" aria-label="Tutup panel pengguna">
+                <i class="ti-close" aria-hidden="true"></i>
+            </button>
+        </div>
+        <div class="pane-body">
+            <div class="panel-profile">
+                <span class="avatar-initial avatar-xl">{{ current_user.initials }}</span>
+                <h5>{{ current_user.nama_lengkap }}</h5>
+                <p class="text-secondary">{{ current_user.email }}</p>
+                <span class="badge badge-pill badge-soft-accent">{{ current_user.role_label }}</span>
+            </div>
+
+            <div class="panel-section">
+                <h6 class="panel-section-title">Akses Cepat</h6>
+                <div class="panel-links">
+                    <a href="/profile"><i class="ti-user" aria-hidden="true"></i> Profil Saya <i class="ti-angle-right" aria-hidden="true"></i></a>
+                    <a href="/alerts"><i class="ti-bell" aria-hidden="true"></i> Pusat Peringatan <span class="panel-link-count">{{ active_alert_count }}</span></a>
+                    <a href="/work-orders?status=active"><i class="ti-clipboard" aria-hidden="true"></i> Work Order Aktif <span class="panel-link-count">{{ fleet.open_wos }}</span></a>
+                    {% if is_admin %}
+                        <a href="/thresholds"><i class="ti-settings" aria-hidden="true"></i> Threshold Sensor <i class="ti-angle-right" aria-hidden="true"></i></a>
+                        <a href="/integration"><i class="ti-plug" aria-hidden="true"></i> Integrasi &amp; Dataset <i class="ti-angle-right" aria-hidden="true"></i></a>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <h6 class="panel-section-title">Sesi</h6>
+                <dl class="session-list">
+                    <div><dt>Peran</dt><dd>{{ current_user.role_label }}</dd></div>
+                    <div><dt>Shift</dt><dd>{{ shift }}</dd></div>
+                    <div><dt>Zona waktu</dt><dd>{{ timezone }}</dd></div>
+                </dl>
+                <form method="post" action="/logout">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="btn btn-outline-danger btn-sm btn-block">
+                        <i class="ti-power-off" aria-hidden="true"></i> Keluar dari akun
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</aside>

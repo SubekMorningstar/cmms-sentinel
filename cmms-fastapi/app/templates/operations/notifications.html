@@ -1,0 +1,20 @@
+{% extends "layouts/app.html" %}
+{% block title %}Notifikasi{% endblock %}
+{% block page_description %}<p class="page-description">Penugasan, tenggat, dan peringatan yang ditujukan untuk akun Anda.</p>{% endblock %}
+{% block page_actions %}
+    <form method="post" action="/notifications/read-all"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn-outline-secondary btn-sm" type="submit">Tandai semua dibaca</button></form>
+{% endblock %}
+{% block content %}
+<section class="card"><div class="card-body">
+    <div class="section-head"><div><h2>Pembaruan untuk Anda</h2><p>{{ items|length }} notifikasi terbaru</p></div></div>
+    <div class="feed-list">
+        {% for note in items %}
+            <article class="feed-item">
+                <span class="feed-icon {{ 'is-warning' if not note.read_at else '' }}"><i class="ti-bell" aria-hidden="true"></i></span>
+                <div class="feed-body"><p class="feed-title"><a href="{{ note.href }}">{{ note.title }}</a>{% if not note.read_at %} <strong>· Baru</strong>{% endif %}</p><div class="feed-meta">{{ note.message }}</div><time class="feed-time">{{ note.created_at|dt }}</time></div>
+                {% if not note.read_at %}<form method="post" action="/notifications/{{ note.id }}/read"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn-quiet btn-sm" type="submit">Tandai dibaca</button></form>{% endif %}
+            </article>
+        {% else %}<div class="feed-empty">Belum ada notifikasi untuk akun ini.</div>{% endfor %}
+    </div>
+</div></section>
+{% endblock %}

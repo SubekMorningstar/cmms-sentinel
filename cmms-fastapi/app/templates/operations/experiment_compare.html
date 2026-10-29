@@ -1,0 +1,40 @@
+{% extends "layouts/app.html" %}
+{% block title %}Perbandingan eksperimen{% endblock %}
+{% block page_description %}<p class="page-description">Bandingkan konfigurasi dan metrik run. Seluruh angka mengevaluasi data simulasi, bukan akurasi di pabrik.</p>{% endblock %}
+{% block page_actions %}<a href="/simulation" class="btn btn-outline-secondary btn-sm">Laboratorium simulasi</a>{% endblock %}
+{% block content %}
+<section class="card"><div class="card-body">
+    <div class="section-head"><div><h2>Pilih eksperimen</h2><p>Pilih hingga empat run dari riwayat terbaru.</p></div></div>
+    <form method="get" action="/simulation/compare">
+        <div class="table-wrap"><table class="table">
+            <thead><tr><th>Pilih</th><th>Eksperimen</th><th>Skenario</th><th>Konfigurasi</th><th>Skor deteksi</th><th>Alarm keliru</th></tr></thead>
+            <tbody>{% for run in recent %}
+                <tr>
+                    <td><input type="checkbox" name="runs" value="{{ run.run_id }}" aria-label="Pilih run {{ run.run_id }}" {{ 'checked' if run.run_id in selected_ids else '' }}></td>
+                    <td>{{ run.created_at|dt }}<div class="cell-secondary">{{ run.run_id }}</div></td>
+                    <td>{{ run.scenario_label }} · {{ run.machine_code }}</td>
+                    <td>Seed {{ run.seed }} · {{ run.severity_label }} · {{ run.duration_minutes }} menit<br>{{ run.started_at|dt }}–{{ run.ended_at|dt }}</td>
+                    <td>{{ run.metrics.precision_pct if run.metrics.precision_pct is not none else '—' }}% precision<br>{{ run.metrics.recall_pct if run.metrics.recall_pct is not none else '—' }}% recall<br>{{ run.metrics.specificity_pct if run.metrics.specificity_pct is not none else '—' }}% specificity</td>
+                    <td>{{ run.metrics.false_alarm_episodes }} episode · {{ run.metrics.false_alarms_per_hour|num(2) }}/jam</td>
+                </tr>
+            {% else %}<tr><td colspan="6">Belum ada eksperimen tersimpan.</td></tr>{% endfor %}</tbody>
+        </table></div>
+        <button class="btn btn-primary btn-sm mt-2" type="submit">Bandingkan pilihan</button>
+    </form>
+</div></section>
+{% if runs %}
+<section class="card mt-3"><div class="card-body">
+    <div class="section-head"><div><h2>Hasil perbandingan</h2><p>{{ runs|length }} eksperimen dipilih · data simulasi</p></div></div>
+    <div class="table-wrap"><table class="table">
+        <thead><tr><th>Parameter</th>{% for run in runs %}<th>{{ run.machine_code }} · {{ run.scenario_label }}</th>{% endfor %}</tr></thead>
+        <tbody>
+            <tr><th>Run / seed</th>{% for run in runs %}<td>{{ run.run_id }}<br>Seed {{ run.seed }}</td>{% endfor %}</tr>
+            <tr><th>Rentang / keparahan</th>{% for run in runs %}<td>{{ run.started_at|dt }}–{{ run.ended_at|dt }}<br>{{ run.severity_label }} · {{ run.duration_minutes }} menit</td>{% endfor %}</tr>
+            <tr><th>Precision / Recall / Specificity</th>{% for run in runs %}<td>{{ run.metrics.precision_pct if run.metrics.precision_pct is not none else '—' }}% / {{ run.metrics.recall_pct if run.metrics.recall_pct is not none else '—' }}% / {{ run.metrics.specificity_pct if run.metrics.specificity_pct is not none else '—' }}%</td>{% endfor %}</tr>
+            <tr><th>Metode &amp; latensi deteksi</th>{% for run in runs %}<td>{{ run.metrics.detection_method }}<br>{{ run.metrics.detection_latency_minutes|string + ' menit' if run.metrics.detection_latency_minutes is not none else 'Tidak terdeteksi' }}</td>{% endfor %}</tr>
+            <tr><th>Alarm keliru</th>{% for run in runs %}<td>{{ run.metrics.false_alarm_episodes }} episode · {{ run.metrics.false_alarms_per_hour|num(2) }}/jam</td>{% endfor %}</tr>
+        </tbody>
+    </table></div>
+</div></section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,174 @@
+{% extends "layouts/app.html" %}
+{% block title %}Aset &amp; Mesin{% endblock %}
+
+{% block page_description %}
+    <p class="page-description">
+        Master aset produksi, kesehatan mesin, status operasional, dan tautan cepat ke telemetry.
+    </p>
+{% endblock %}
+
+{% block page_actions %}
+    {% if is_admin %}
+        <a href="/assets/new" class="btn btn-primary btn-sm"><i class="ti-plus" aria-hidden="true"></i> Tambah aset</a>
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+<section class="summary-grid" aria-label="Ringkasan aset">
+    <article class="summary-card">
+        <span class="summary-icon"><i class="ti-harddrives" aria-hidden="true"></i></span>
+        <div class="summary-copy">
+            <strong>{{ summary.total }}</strong>
+            <span>Mesin aktif terdaftar</span>
+        </div>
+    </article>
+    <article class="summary-card is-good">
+        <span class="summary-icon"><i class="ti-check-box" aria-hidden="true"></i></span>
+        <div class="summary-copy">
+            <strong>{{ summary.running }}</strong>
+            <span>Beroperasi</span>
+        </div>
+    </article>
+    <article class="summary-card is-warning">
+        <span class="summary-icon"><i class="ti-alert" aria-hidden="true"></i></span>
+        <div class="summary-copy">
+            <strong>{{ summary.attention }}</strong>
+            <span>Perlu perhatian</span>
+        </div>
+    </article>
+    <article class="summary-card is-danger">
+        <span class="summary-icon"><i class="ti-server" aria-hidden="true"></i></span>
+        <div class="summary-copy">
+            <strong>{{ summary.offline }}</strong>
+            <span>Telemetry offline</span>
+        </div>
+    </article>
+</section>
+
+<section class="filter-bar" aria-label="Filter aset">
+    <form method="get" action="/assets" class="filter-form">
+        <div class="filter-field filter-grow">
+            <label for="asset-q">Cari mesin</label>
+            <div class="search-field">
+                <i class="ti-search" aria-hidden="true"></i>
+                <input type="search" class="form-control" id="asset-q" name="q" value="{{ filters.q }}"
+                       placeholder="Kode, nama, tipe, atau lokasi" maxlength="80">
+            </div>
+        </div>
+        <div class="filter-field">
+            <label for="asset-status">Status</label>
+            <select class="form-control" id="asset-status" name="status">
+                <option value="">Semua status</option>
+                {% for key, label in status_maps.machine_status.items() if key != 'retired' %}
+                    <option value="{{ key }}" {{ 'selected' if filters.status == key else '' }}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-field">
+            <label for="asset-criticality">Kekritisan</label>
+            <select class="form-control" id="asset-criticality" name="criticality">
+                <option value="">Semua tingkat</option>
+                {% for key, label in status_maps.criticality.items() %}
+                    <option value="{{ key }}" {{ 'selected' if filters.criticality == key else '' }}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% if filters.archived %}<input type="hidden" name="archived" value="1">{% endif %}
+        <div class="filter-actions">
+            <button type="submit" class="btn btn-primary btn-sm"><i class="ti-filter" aria-hidden="true"></i> Terapkan</button>
+            <a href="/assets{{ '?archived=1' if filters.archived else '' }}" class="btn btn-quiet btn-sm">Reset</a>
+        </div>
+    </form>
+    <div class="filter-summary">
+        <span><strong>{{ snapshots|length }}</strong> aset ditampilkan</span>
+        <div class="chip-row">
+            <a class="chip {{ 'is-active' if not filters.archived else '' }}" href="/assets">
+                <i class="ti-harddrives" aria-hidden="true"></i> Aktif
+            </a>
+            <a class="chip {{ 'is-active' if filters.archived else '' }}" href="/assets?archived=1">
+                <i class="ti-archive" aria-hidden="true"></i> Arsip
+            </a>
+        </div>
+    </div>
+</section>
+
+{% if snapshots %}
+    <div class="machine-grid">
+        {% for snap in snapshots %}
+            {% set machine = snap.machine %}
+            <article class="machine-card {{ 'is-archived' if not machine.active }}">
+                <div class="machine-head">
+                    <div>
+                        <div class="machine-code">{{ machine.code }}</div>
+                        <h2 class="machine-name"><a href="/assets/{{ snap.id }}">{{ machine.name }}</a></h2>
+                        <p class="machine-location">
+                            <i class="ti-location-pin" aria-hidden="true"></i>
+                            {{ machine.location }} · {{ machine.asset_type }}
+                        </p>
+                    </div>
+                    <div class="health-chip">
+                        <div class="health-ring ring-sm is-{{ snap.health.key }}" style="--ring-value: {{ snap.score or 0 }};">
+                            <span class="ring-score">{{ snap.score|num(0) }}</span>
+                            <span class="ring-caption">Score</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="machine-badges">
+                    <span class="state-pill is-{{ machine.operational_status }}">{{ status_maps.machine_status.get(machine.operational_status, machine.operational_status) }}</span>
+                    <span class="badge badge-soft-{{ 'danger' if machine.criticality in ['critical', 'high'] else 'accent' }}">{{ status_maps.criticality.get(machine.criticality, machine.criticality) }}</span>
+                    <span class="badge badge-soft-{{ 'good' if snap.online else 'danger' }}">
+                        <i class="ti-plug" aria-hidden="true"></i> {{ 'Online' if snap.online else 'Offline' }}
+                    </span>
+                </div>
+                <div class="machine-body">
+                    <div class="sensor-mini-grid">
+                        {% for sensor in sensor_order %}
+                            {% set data = snap.sensors[sensor] %}
+                            <div class="sensor-mini is-{{ data.state }}">
+                                <span class="sensor-mini-label"><i class="fa {{ sensors[sensor].icon }}" aria-hidden="true"></i> {{ sensors[sensor].short }}</span>
+                                <span class="sensor-mini-value">{{ data.value|num(1) }}<small>{{ data.unit }}</small></span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    <div class="machine-foot">
+                        <div class="machine-links">
+                            <a class="machine-link {{ 'is-alert' if snap.alert_count }}" href="/alerts?machine={{ machine.code }}">
+                                <i class="ti-bell" aria-hidden="true"></i> {{ snap.alert_count }} alert
+                            </a>
+                            <a class="machine-link" href="/work-orders?machine={{ machine.code }}">
+                                <i class="ti-clipboard" aria-hidden="true"></i> {{ snap.wo_count }} WO
+                            </a>
+                        </div>
+                        <a class="machine-primary-link" href="/assets/{{ snap.id }}">
+                            Detail <i class="ti-angle-right" aria-hidden="true"></i>
+                        </a>
+                    </div>
+                </div>
+            </article>
+        {% endfor %}
+    </div>
+{% else %}
+    <section class="card">
+        <div class="card-body">
+            <div class="empty-state">
+                <span class="empty-icon"><i class="ti-search" aria-hidden="true"></i></span>
+                <h3>{{ 'Arsip mesin kosong' if filters.archived else 'Tidak ada mesin yang cocok' }}</h3>
+                <p>
+                    {% if filters.q or filters.status or filters.criticality %}
+                        Ubah kata kunci atau filter untuk melihat aset lainnya.
+                    {% else %}
+                        Belum ada aset terdaftar. Tambahkan mesin pertama untuk memulai pemantauan berbasis kondisi.
+                    {% endif %}
+                </p>
+                <div class="empty-actions">
+                    {% if filters.q or filters.status or filters.criticality %}
+                        <a href="/assets{{ '?archived=1' if filters.archived else '' }}" class="btn btn-outline-secondary btn-sm">Bersihkan filter</a>
+                    {% elif is_admin %}
+                        <a href="/assets/new" class="btn btn-primary btn-sm">Tambah aset</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </section>
+{% endif %}
+{% endblock %}

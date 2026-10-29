@@ -1,0 +1,51 @@
+{% extends "layouts/app.html" %}
+{% block title %}Pemeliharaan Preventif{% endblock %}
+{% block page_description %}
+    <p class="page-description">Jadwal aset virtual membuat work order dan checklist saat jatuh tempo.</p>
+{% endblock %}
+{% block page_actions %}<a href="/work-orders?type=preventive" class="btn btn-outline-secondary btn-sm">Work order preventif</a>{% endblock %}
+{% block content %}
+<div class="split-8-4">
+    <section class="card">
+        <div class="card-body">
+            <div class="section-head"><div><h2>Jadwal inspeksi</h2><p>{{ plans|length }} rencana tercatat</p></div></div>
+            <div class="table-wrap">
+                <table class="table">
+                    <thead><tr><th>Rencana</th><th>Aset</th><th>Interval</th><th>Berikutnya</th><th>Teknisi</th><th>Status</th><th></th></tr></thead>
+                    <tbody>{% for plan in plans %}
+                        <tr>
+                            <td><strong>{{ plan.name }}</strong><div class="cell-secondary">{{ plan.title }}</div></td>
+                            <td>{{ plan.machine_code }} · {{ plan.machine_name }}</td>
+                            <td>Setiap {{ plan.interval_days }} hari</td>
+                            <td>{{ plan.next_due_at|dt }}</td>
+                            <td>{{ plan.assigned_name or 'Belum ditentukan' }}</td>
+                            <td>{{ 'Aktif' if plan.active else 'Dijeda' }}</td>
+                            <td><form method="post" action="/maintenance/plans/{{ plan._id }}/toggle"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn-quiet btn-sm" type="submit">{{ 'Jeda' if plan.active else 'Aktifkan' }}</button></form></td>
+                        </tr>
+                    {% else %}<tr><td colspan="7">Belum ada jadwal. Tambahkan rencana pemeriksaan pertama di samping.</td></tr>{% endfor %}</tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+    <aside class="card form-side-card">
+        <div class="card-body">
+            <h2>Rencana preventif baru</h2>
+            <form method="post" action="/maintenance/plans">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="form-group"><label for="pm-name">Nama rencana</label><input class="form-control" id="pm-name" name="name" required minlength="3" maxlength="120"></div>
+                <div class="form-group"><label for="pm-machine">Aset virtual</label><select class="form-control" id="pm-machine" name="machine_id" required>{% for machine in machines %}<option value="{{ machine._id }}">{{ machine.code }} · {{ machine.name }}</option>{% endfor %}</select></div>
+                <div class="form-group"><label for="pm-title">Judul work order</label><input class="form-control" id="pm-title" name="title" required minlength="5" maxlength="140" value="Inspeksi preventif berkala"></div>
+                <div class="form-group"><label for="pm-description">Deskripsi</label><textarea class="form-control" id="pm-description" name="description" rows="3" required minlength="5" maxlength="2000">Lakukan pemeriksaan rutin sesuai checklist dan catat temuan pada aset virtual.</textarea></div>
+                <div class="form-group"><label for="pm-checklist">Checklist, satu langkah per baris</label><textarea class="form-control" id="pm-checklist" name="checklist" rows="4">Pastikan area kerja aman
+Periksa kondisi komponen
+Uji fungsi aset
+Catat temuan pemeriksaan</textarea></div>
+                <div class="form-group"><label for="pm-interval">Interval (hari)</label><input class="form-control" id="pm-interval" type="number" name="interval_days" min="1" max="365" value="30" required></div>
+                <div class="form-group"><label for="pm-next">Jadwal pertama</label><input class="form-control" id="pm-next" type="datetime-local" name="next_due_at" required></div>
+                <div class="form-group"><label for="pm-assignee">Teknisi (opsional)</label><select class="form-control" id="pm-assignee" name="assigned_to"><option value="">Belum ditentukan</option>{% for tech in technicians %}<option value="{{ tech._id }}">{{ tech.nama_lengkap }}</option>{% endfor %}</select></div>
+                <button class="btn btn-primary btn-block" type="submit">Simpan jadwal</button>
+            </form>
+        </div>
+    </aside>
+</div>
+{% endblock %}

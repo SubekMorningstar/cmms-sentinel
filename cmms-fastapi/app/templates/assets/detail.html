@@ -1,0 +1,267 @@
+{% extends "layouts/app.html" %}
+{% block title %}{{ machine.name }}{% endblock %}
+
+{% block page_description %}
+    <p class="page-description">
+        Profil aset, kesehatan sensor terkini, ambang batas, peringatan, dan riwayat pemeliharaan.
+    </p>
+{% endblock %}
+
+{% block page_actions %}
+    <a href="/assets" class="btn btn-quiet btn-sm"><i class="ti-arrow-left" aria-hidden="true"></i> Aset</a>
+    {% if machine.active %}
+        <a href="/cbm-monitoring?machine={{ machine.code }}" class="btn btn-outline-secondary btn-sm"><i class="ti-pulse" aria-hidden="true"></i> Monitoring</a>
+        <a href="/work-orders/new?machine={{ machine.code }}" class="btn btn-primary btn-sm"><i class="ti-plus" aria-hidden="true"></i> Work order</a>
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+<section class="asset-hero" aria-labelledby="asset-title">
+    <div class="asset-hero-main">
+        <div class="asset-hero-top">
+            <span class="asset-hero-code">{{ machine.code }}</span>
+            <span class="state-pill is-{{ machine.operational_status }}">{{ status_maps.machine_status.get(machine.operational_status, machine.operational_status) }}</span>
+            <span class="badge badge-soft-{{ 'danger' if machine.criticality in ['critical', 'high'] else 'accent' }}">Kekritisan {{ status_maps.criticality.get(machine.criticality, machine.criticality) }}</span>
+            {% if snapshot.is_synthetic %}<span class="source-tag">Data simulasi · {{ snapshot.source_label }}</span>{% elif snapshot.source %}<span class="source-tag">{{ snapshot.source_label }}</span>{% endif %}
+            {% if snapshot.scenario_label %}<span class="badge badge-soft-info">Skenario · {{ snapshot.scenario_label }}</span>{% endif %}
+            {% if not machine.active %}<span class="state-pill is-retired">Diarsipkan</span>{% endif %}
+        </div>
+        <h2 class="asset-hero-title" id="asset-title">{{ machine.name }}</h2>
+        <p class="asset-hero-sub">{{ machine.asset_type }} · {{ machine.location }}</p>
+        <div class="asset-hero-meta">
+            <span><i class="ti-crown" aria-hidden="true"></i> {{ machine.manufacturer or 'Produsen belum diisi' }}</span>
+            <span><i class="ti-tag" aria-hidden="true"></i> {{ machine.model or 'Model belum diisi' }}</span>
+            <span><i class="ti-time" aria-hidden="true"></i> Terakhir: {{ snapshot.last_ts|dt }}</span>
+            <span><i class="ti-plug" aria-hidden="true"></i> {{ 'Telemetry online' if snapshot.online else 'Telemetry offline' }}</span>
+        </div>
+    </div>
+    <div class="asset-hero-side">
+        <div class="health-ring is-{{ snapshot.health.key }}" style="--ring-value: {{ snapshot.score or 0 }};">
+            <span class="ring-score">{{ snapshot.score|num(0) }}</span>
+            <span class="ring-caption">{{ snapshot.health.label }}</span>
+        </div>
+        {% if is_admin %}
+            <div class="asset-hero-actions">
+                <a href="/assets/{{ machine._id }}/edit" class="btn btn-soft btn-sm"><i class="ti-pencil" aria-hidden="true"></i> Edit</a>
+                {% if machine.active %}
+                    <form method="post" action="/assets/{{ machine._id }}/archive"
+                          data-confirm="Arsipkan {{ machine.code }}? Riwayat sensor dan work order tetap tersimpan.">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="btn btn-danger-soft btn-sm"><i class="ti-archive" aria-hidden="true"></i> Arsipkan</button>
+                    </form>
+                {% else %}
+                    <form method="post" action="/assets/{{ machine._id }}/restore"
+                          data-confirm="Aktifkan kembali {{ machine.code }}? Status akan diubah menjadi standby.">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="btn btn-success-soft btn-sm"><i class="ti-reload" aria-hidden="true"></i> Pulihkan</button>
+                    </form>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</section>
+
+<div class="sensor-grid">
+    {% for sensor in sensor_order %}
+        {% set data = snapshot.sensors[sensor] %}
+        {% set threshold = data.threshold or {} %}
+        <article class="sensor-card sensor-{{ sensor }}">
+            <div class="sensor-head">
+                <span class="sensor-name"><i class="fa {{ sensors[sensor].icon }}" aria-hidden="true"></i> {{ sensors[sensor].label }}</span>
+                <span class="state-pill is-{{ data.state }}">{{ {'normal': 'Normal', 'warning': 'Peringatan', 'critical': 'Kritis', 'unknown': 'Tanpa data'}.get(data.state, data.state) }}</span>
+            </div>
+            <div class="sensor-body">
+                <div class="sensor-reading">
+                    <span class="sensor-value">{{ data.value|num(1) }}</span>
+                    <span class="sensor-unit">{{ data.unit }}</span>
+                </div>
+                <div class="sensor-sub">
+                    <span>{{ sensors[sensor].hint }}</span>
+                    <strong>Score {{ data.score|num(0) }}</strong>
+                </div>
+                <div class="sensor-footer">
+                    <span>Warn {{ threshold.warning|num(1) }}</span>
+                    <span>Kritis <strong>{{ threshold.critical|num(1) }} {{ data.unit }}</strong></span>
+                </div>
+            </div>
+        </article>
+    {% endfor %}
+</div>
+
+<section class="card model-insight is-{{ snapshot.predictive.state }}" aria-labelledby="model-insight-title">
+    <div class="card-body">
+        <div class="section-head">
+            <div>
+                <h2 id="model-insight-title">Skor anomali pola sensor</h2>
+                <p>
+                    Baseline {{ snapshot.predictive.history_days }} hari dari pembacaan normal mesin ini.
+                    Skor adalah tingkat penyimpangan, bukan probabilitas kerusakan.
+                </p>
+            </div>
+            <span class="state-pill is-{{ snapshot.predictive.state }}">{{ snapshot.predictive.label }}</span>
+        </div>
+        <div class="model-insight-body">
+            <p class="model-insight-score">
+                {{ snapshot.predictive.score|num(0) if snapshot.predictive.score is not none else '—' }}
+                <small>/100</small>
+            </p>
+            <div class="model-insight-evidence">
+                {% if snapshot.predictive.drivers %}
+                    {% for driver in snapshot.predictive.drivers %}
+                        <p>
+                            <strong>{{ driver.reason }}</strong>:
+                            {{ driver.value|num(1) }} {{ driver.unit }},
+                            baseline {{ driver.baseline|num(1) }} {{ driver.unit }}.
+                        </p>
+                    {% endfor %}
+                {% else %}
+                    <p>{{ snapshot.predictive.note }}</p>
+                {% endif %}
+                <span>
+                    Keyakinan {{ snapshot.predictive.confidence|lower }} ·
+                    {{ snapshot.predictive.trained_sensors }} sensor terlatih ·
+                    minimal {{ snapshot.predictive.baseline_samples|intnum }} sampel sehat per sensor.
+                </span>
+                <span>Metode: {{ snapshot.predictive.method }}.</span>
+            </div>
+        </div>
+    </div>
+</section>
+
+<div class="split-8-4">
+    <section class="card" aria-labelledby="identity-title">
+        <div class="card-body">
+            <div class="section-head">
+                <div>
+                    <h2 id="identity-title">Spesifikasi &amp; identitas</h2>
+                    <p>Data master aset untuk keperluan audit dan pemeliharaan.</p>
+                </div>
+                <span class="badge badge-soft-{{ 'danger' if machine.criticality in ['critical', 'high'] else 'accent' }}">{{ status_maps.criticality.get(machine.criticality, machine.criticality) }}</span>
+            </div>
+            <div class="asset-info-grid">
+                <dl class="meta-list">
+                    <div><dt>Kode aset</dt><dd class="mono">{{ machine.code }}</dd></div>
+                    <div><dt>Tipe aset</dt><dd>{{ machine.asset_type }}</dd></div>
+                    <div><dt>Lokasi</dt><dd>{{ machine.location }}</dd></div>
+                    <div><dt>Status operasional</dt><dd>{{ status_maps.machine_status.get(machine.operational_status, machine.operational_status) }}</dd></div>
+                </dl>
+                <dl class="meta-list">
+                    <div><dt>Produsen</dt><dd>{{ machine.manufacturer or '—' }}</dd></div>
+                    <div><dt>Model</dt><dd>{{ machine.model or '—' }}</dd></div>
+                    <div><dt>Nomor seri</dt><dd class="mono">{{ machine.serial_number or '—' }}</dd></div>
+                    <div><dt>Tanggal instalasi</dt><dd>{{ machine.installed_at|date_only }}</dd></div>
+                </dl>
+            </div>
+            <dl class="meta-list asset-info-grid">
+                <div><dt>Daya terpasang</dt><dd>{{ machine.rated_power_kw|num(1) if machine.rated_power_kw else '—' }}{% if machine.rated_power_kw %} kW{% endif %}</dd></div>
+                <div><dt>Kecepatan nominal</dt><dd>{{ machine.rated_speed_rpm|intnum if machine.rated_speed_rpm else '—' }}{% if machine.rated_speed_rpm %} rpm{% endif %}</dd></div>
+            </dl>
+            {% if machine.notes %}
+                <p class="asset-note">{{ machine.notes }}</p>
+            {% endif %}
+        </div>
+    </section>
+
+    <section class="card" aria-labelledby="asset-threshold-title">
+        <div class="card-body">
+            <div class="section-head">
+                <div>
+                    <h2 id="asset-threshold-title">Ambang batas sensor</h2>
+                    <p>Batas peringatan dan kekritisan aktif.</p>
+                </div>
+                {% if is_admin %}
+                    <a href="/thresholds?machine={{ machine.code }}" class="btn btn-quiet btn-sm">Ubah</a>
+                {% endif %}
+            </div>
+            <ul class="side-list">
+                {% for sensor in sensor_order %}
+                    {% set data = snapshot.sensors[sensor] %}
+                    {% set threshold = data.threshold or {} %}
+                    <li>
+                        <span class="sensor-mini-label"><i class="fa {{ sensors[sensor].icon }}" aria-hidden="true"></i></span>
+                        <div class="side-list-body">
+                            <span class="side-list-title">{{ sensors[sensor].label }}</span>
+                            <span class="side-list-meta">
+                                Peringatan {{ threshold.warning|num(1) }} · Kritis {{ threshold.critical|num(1) }} {{ data.unit }}
+                            </span>
+                        </div>
+                        <span class="state-pill is-{{ data.state }}">{{ data.state|capitalize }}</span>
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </section>
+</div>
+
+<div class="split-7-5">
+    <section class="card" aria-labelledby="asset-alert-title">
+        <div class="card-body">
+            <div class="section-head">
+                <div>
+                    <h2 id="asset-alert-title">Peringatan mesin</h2>
+                    <p>Lima alert terbaru untuk aset ini.</p>
+                </div>
+                <a href="/alerts?machine={{ machine.code }}" class="btn btn-quiet btn-sm">Semua</a>
+            </div>
+            <div class="feed-list">
+                {% for alert in alert_docs %}
+                    <div class="feed-item">
+                        <span class="feed-icon {{ 'is-good' if alert.status == 'resolved' else ('is-danger' if alert.level == 'critical' else 'is-warning') }}">
+                            <i class="ti-bell" aria-hidden="true"></i>
+                        </span>
+                        <div class="feed-body">
+                            <p class="feed-title">
+                                <a href="/alerts/{{ alert.id }}">{{ sensors[alert.sensor].label if alert.sensor in sensors else alert.sensor }} · {{ status_maps.alert_level.get(alert.level, alert.level) }}</a>
+                                <span class="state-pill is-{{ alert.status }}">{{ status_maps.alert_status.get(alert.status, alert.status) }}</span>
+                            </p>
+                            <div class="feed-meta">
+                                <span>{{ alert.message }}</span>
+                                <span>{{ alert.value|num(1) }} {{ alert.unit }}</span>
+                            </div>
+                        </div>
+                        <time class="feed-time" datetime="{{ alert.last_seen.isoformat() if alert.last_seen else '' }}">{{ alert.last_seen|relative }}</time>
+                    </div>
+                {% else %}
+                    <div class="feed-empty"><i class="ti-check-box" aria-hidden="true"></i> Belum ada alert untuk mesin ini.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+
+    <section class="card" aria-labelledby="asset-wo-title">
+        <div class="card-body">
+            <div class="section-head">
+                <div>
+                    <h2 id="asset-wo-title">Work order</h2>
+                    <p>Riwayat pekerjaan terbaru.</p>
+                </div>
+                <a href="/work-orders?machine={{ machine.code }}" class="btn btn-quiet btn-sm">Semua</a>
+            </div>
+            <ul class="side-list">
+                {% for wo in wo_docs %}
+                    <li>
+                        <span class="feed-icon {{ 'is-good' if wo.status == 'resolved' else 'is-info' }}">
+                            <i class="ti-clipboard" aria-hidden="true"></i>
+                        </span>
+                        <div class="side-list-body">
+                            <a class="side-list-title" href="/work-orders/{{ wo.id }}">{{ wo.code }} · {{ wo.title }}</a>
+                            <span class="side-list-meta">
+                                {{ status_maps.priority.get(wo.priority, wo.priority) }} · {{ status_maps.wo_status.get(wo.status, wo.status) }}
+                                {% if wo.assigned_name %}· {{ wo.assigned_name }}{% endif %}
+                            </span>
+                            <span class="side-list-time">Dibuat {{ wo.created_at|dt }}</span>
+                        </div>
+                    </li>
+                {% else %}
+                    <li class="feed-empty">Belum ada work order untuk mesin ini.</li>
+                {% endfor %}
+            </ul>
+            {% if machine.active %}
+                <a href="/work-orders/new?machine={{ machine.code }}" class="btn btn-outline-secondary btn-sm btn-block">
+                    <i class="ti-plus" aria-hidden="true"></i> Buat work order baru
+                </a>
+            {% endif %}
+        </div>
+    </section>
+</div>
+{% endblock %}

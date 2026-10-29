@@ -1,0 +1,62 @@
+{% extends "layouts/app.html" %}
+{% block title %}Penjadwalan Teknisi{% endblock %}
+{% block page_description %}
+    <p class="page-description">Antrean aktif dan tenggat 7 hari · Patokan demo: 5 WO aktif per teknisi.</p>
+{% endblock %}
+{% block page_actions %}
+    <a href="/work-orders?status=review" class="btn btn-outline-secondary btn-sm">Tinjauan penyelesaian</a>
+    <a href="/work-orders/new" class="btn btn-primary btn-sm">Buat work order</a>
+{% endblock %}
+{% block content %}
+<section class="card" aria-labelledby="team-load-title">
+    <div class="card-body">
+        <div class="section-head"><div><h2 id="team-load-title">Beban teknisi</h2><p>{{ week_start|date_only }}–{{ week_end|date_only }}</p></div></div>
+        <div class="table-wrap">
+            <table class="table">
+                <thead><tr><th>Teknisi</th><th class="text-right">WO aktif</th><th class="text-right">Jatuh tempo minggu ini</th><th>Target antrean</th></tr></thead>
+                <tbody>
+                    {% for tech in technicians %}
+                    <tr>
+                        <td>{{ tech.nama_lengkap }}</td>
+                        <td class="text-right"><a href="/work-orders?status=active&amp;assigned_to={{ tech._id }}">{{ tech.open_count }}</a></td>
+                        <td class="text-right">{{ tech.week_count }}</td>
+                        <td>{{ tech.open_count }} / {{ tech.capacity_target }} WO</td>
+                    </tr>
+                    {% else %}<tr><td colspan="4">Belum ada teknisi aktif.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+<section class="card mt-3" aria-labelledby="schedule-queue-title">
+    <div class="card-body">
+        <div class="section-head"><div><h2 id="schedule-queue-title">Antrean penjadwalan</h2></div></div>
+        <div class="table-wrap">
+            <table class="table workorder-table">
+                <thead><tr><th>Work order</th><th>Aset &amp; lokasi</th><th>Status</th><th>Tenggat</th><th>Penugasan manual</th></tr></thead>
+                <tbody>
+                    {% for wo in queue %}
+                    <tr>
+                        <td><a href="/work-orders/{{ wo.id }}">{{ wo.code }} · {{ wo.title }}</a><div class="cell-secondary">{{ status_maps.priority.get(wo.priority, wo.priority) }}</div></td>
+                        <td>{{ wo.machine_code }} · {{ wo.machine_name }}</td>
+                        <td>{{ status_maps.wo_status.get(wo.status, wo.status) }}</td>
+                        <td class="{{ 'text-danger' if wo.is_overdue else '' }}">{{ wo.due_at|dt }}</td>
+                        <td>
+                            <form method="post" action="/work-orders/{{ wo.id }}/assign" class="d-flex">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <label class="sr-only" for="schedule-{{ wo.id }}">Teknisi</label>
+                                <select class="form-control" id="schedule-{{ wo.id }}" name="assigned_to">
+                                    <option value="">Belum ditugaskan</option>
+                                    {% for tech in technicians %}<option value="{{ tech._id }}" {{ 'selected' if wo.assigned_to|string == tech._id|string else '' }}>{{ tech.nama_lengkap }} · {{ tech.open_count }} aktif</option>{% endfor %}
+                                </select>
+                                <button class="btn btn-outline-secondary btn-sm ml-2" type="submit">Simpan</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}<tr><td colspan="5">Tidak ada work order aktif dalam antrean.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+{% endblock %}

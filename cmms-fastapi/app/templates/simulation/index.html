@@ -1,0 +1,273 @@
+{% extends "layouts/app.html" %}
+{% block title %}Laboratorium Simulasi{% endblock %}
+
+{% block page_actions %}
+    <a href="/simulation/compare" class="btn btn-outline-secondary btn-sm">Bandingkan eksperimen</a>
+{% endblock %}
+
+{% block content %}
+<section class="integration-status" aria-label="Keterangan laboratorium simulasi">
+    <span class="integration-status-icon"><i class="ti-info-alt" aria-hidden="true"></i></span>
+    <div>
+        <strong>Data simulasi · mesin virtual</strong>
+        <p>Eksperimen menyimpan seed, skenario, dan metrik untuk diulang.</p>
+    </div>
+</section>
+
+<div class="integration-grid simulation-grid">
+    <section class="card" aria-labelledby="virtual-fleet-title">
+        <div class="card-body">
+            <div class="section-head">
+                <div>
+                    <h2 id="virtual-fleet-title">Mesin virtual</h2>
+                </div>
+            </div>
+            <div class="simulation-machine-list">
+                {% for machine in machines %}
+                    <article class="simulation-machine">
+                        <div class="simulation-machine-heading">
+                            <div>
+                                <h3>{{ machine.code }} · {{ machine.name }}</h3>
+                                <p>
+                                    {% if machine.has_live_source %}
+                                        Simulator dikunci: telemetry gateway terdeteksi
+                                    {% elif machine.status == 'stopped' %}
+                                        Simulator dijeda
+                                    {% elif machine.scenario_active and machine.scenario_id in scenarios %}
+                                        {{ scenarios[machine.scenario_id].label }}
+                                        {% if machine.scenario_id != 'normal' %}
+                                            · {{ scenarios[machine.scenario_id].sensor_label }} · {{ machine.severity_label }}
+                                        {% endif %}
+                                    {% else %}
+                                        Kondisi normal
+                                    {% endif %}
+                                    · Telemetry terakhir {{ machine.latest.ts|relative if machine.latest else 'belum tersedia' }}
+                                </p>
+                                {% if machine.scenario_active and machine.scenario_started_at and machine.scenario_ends_at %}
+                                    <p class="simulation-method">
+                                        Data simulasi · sumber {{ 'dataset sintetis' if machine.latest and machine.latest.source == 'dataset-seed' else 'simulator' }}
+                                        · mulai {{ machine.scenario_started_at|dt }} · berakhir {{ machine.scenario_ends_at|dt }}
+                                        · durasi {{ machine.duration_minutes }} menit
+                                    </p>
+                                {% elif machine.latest and machine.latest.source in ['simulator', 'dataset-seed'] %}
+                                    <p class="simulation-method">Data simulasi · sumber {{ 'dataset sintetis' if machine.latest.source == 'dataset-seed' else 'simulator' }}</p>
+                                {% endif %}
+                            </div>
+                            <span class="state-pill {{ 'is-open' if machine.has_live_source or machine.status == 'stopped' else 'is-resolved' }}">
+                                {{ 'Gateway aktif' if machine.has_live_source else ('Berjalan' if machine.status == 'running' else 'Dijeda') }}
+                            </span>
+                        </div>
+                        {% if not machine.has_live_source %}
+                        <form method="post" action="/simulation/control" class="simulation-control-form">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="machine_code" value="{{ machine.code }}">
+                            <div class="form-group">
+                                <label for="scenario-{{ machine.code }}">Kondisi mesin</label>
+                                <select class="form-control" id="scenario-{{ machine.code }}" name="scenario_id">
+                                    <option value="normal" {{ 'selected' if machine.scenario_id == 'normal' else '' }}>Normal</option>
+                                    {% for key, scenario in scenarios.items() if key != 'normal' %}
+                                        <option value="{{ key }}" {{ 'selected' if machine.scenario_id == key else '' }}>{{ scenario.label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="severity-{{ machine.code }}">Keparahan</label>
+                                <select class="form-control" id="severity-{{ machine.code }}" name="severity">
+                                    <option value="low" {{ 'selected' if machine.severity == 'low' else '' }}>Ringan</option>
+                                    <option value="medium" {{ 'selected' if machine.severity == 'medium' else '' }}>Sedang</option>
+                                    <option value="high" {{ 'selected' if machine.severity not in ['low', 'medium'] else '' }}>Tinggi</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="duration-{{ machine.code }}">Durasi skenario</label>
+                                <select class="form-control" id="duration-{{ machine.code }}" name="duration_minutes">
+                                    {% for minutes in [30, 60, 120, 240] %}
+                                        <option value="{{ minutes }}" {{ 'selected' if machine.duration_minutes == minutes else '' }}>{{ minutes }} menit</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="seed-{{ machine.code }}">Seed simulator</label>
+                                <input class="form-control" id="seed-{{ machine.code }}" name="seed" type="number" min="0" max="2147483647" value="{{ machine.seed }}" required>
+                            </div>
+                            <div class="simulation-control-actions">
+                                <button class="btn btn-primary btn-sm" type="submit" name="status" value="running">Simpan &amp; jalankan</button>
+                                <button class="btn btn-outline-secondary btn-sm" type="submit" name="status" value="stopped">Jeda simulator</button>
+                            </div>
+                        </form>
+                        {% endif %}
+                    </article>
+                {% else %}
+                    <div class="empty-state">
+                        <h3>Belum ada mesin virtual</h3>
+                        <p>Tambahkan aset demo terlebih dahulu untuk menjalankan simulator.</p>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+
+    <aside class="simulation-side">
+        <section class="card" aria-labelledby="experiment-title">
+            <div class="card-body">
+                <div class="section-head">
+                    <div>
+                        <h2 id="experiment-title">Jalankan eksperimen</h2>
+                    </div>
+                </div>
+                <form method="post" action="/simulation/experiments" data-submit-once>
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <div class="form-group">
+                        <label for="experiment-machine">Mesin virtual</label>
+                        <select class="form-control" id="experiment-machine" name="machine_code" required>
+                            {% for machine in machines if not machine.has_live_source %}
+                                <option value="{{ machine.code }}">{{ machine.code }} · {{ machine.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="experiment-scenario">Skenario gangguan</label>
+                        <select class="form-control" id="experiment-scenario" name="scenario_id" required>
+                            {% for key, scenario in scenarios.items() %}
+                                <option value="{{ key }}">{{ scenario.label }}{% if scenario.sensor_label %} · {{ scenario.sensor_label }}{% endif %}</option>
+                            {% endfor %}
+                        </select>
+                        <p class="field-hint" id="experiment-scenario-description">{{ scenarios['normal'].description }}</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="experiment-severity">Keparahan gangguan</label>
+                        <select class="form-control" id="experiment-severity" name="severity">
+                            <option value="low">Ringan</option>
+                            <option value="medium">Sedang</option>
+                            <option value="high" selected>Tinggi</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="experiment-start">Rentang mulai</label>
+                        <input class="form-control" id="experiment-start" name="start_at" type="datetime-local" value="{{ default_start }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="experiment-end">Rentang akhir</label>
+                        <input class="form-control" id="experiment-end" name="end_at" type="datetime-local" value="{{ default_end }}">
+                        <p class="field-hint">Rentang harus 30, 60, atau 120 menit dengan interval 5 menit.</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="experiment-seed">Seed eksperimen</label>
+                        <input class="form-control" id="experiment-seed" name="seed" type="number" min="0" max="2147483647" placeholder="Otomatis jika kosong">
+                        <p class="field-hint">Gunakan seed yang sama untuk mengulang pola nilai yang sama.</p>
+                    </div>
+                    <button class="btn btn-primary btn-block" type="submit" {{ 'disabled' if not machines|selectattr('has_live_source', 'equalto', false)|list }}>Jalankan &amp; evaluasi</button>
+                    {% if not machines|selectattr('has_live_source', 'equalto', false)|list %}
+                        <p class="field-hint">Tidak ada mesin virtual yang siap diuji. Mesin dengan telemetry gateway tidak dapat dipakai untuk eksperimen sintetis.</p>
+                    {% endif %}
+                </form>
+            </div>
+        </section>
+
+        <section class="card" aria-labelledby="experiment-method-title">
+            <div class="card-body">
+                <h2 id="experiment-method-title">Cara membaca evaluasi</h2>
+                <p class="simulation-method">Skor penyimpangan ≥25 dihitung sebagai alarm positif. Label gangguan berasal dari skenario.</p>
+                <p class="simulation-method">Precision mengukur ketepatan alarm, recall mengukur gangguan yang tertangkap, dan specificity mengukur kondisi normal yang dikenali.</p>
+                <p class="simulation-method"><strong>Metrik simulasi bukan akurasi lapangan atau probabilitas kerusakan nyata.</strong></p>
+            </div>
+        </section>
+    </aside>
+</div>
+
+<section class="card simulation-history-card" aria-labelledby="simulation-history-title">
+    <div class="card-body">
+        <div class="section-head">
+            <div>
+                <h2 id="simulation-history-title">Riwayat eksperimen</h2>
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Waktu / run ID</th>
+                        <th>Mesin &amp; skenario</th>
+                        <th>Seed / titik</th>
+                        <th>Precision</th>
+                        <th>Recall</th>
+                        <th>Specificity</th>
+                        <th>Deteksi / jeda</th>
+                        <th>Alarm keliru</th>
+                        <th>WO dibuat</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for run in experiments %}
+                        <tr>
+                            <td><strong>{{ run.created_at|dt }}</strong><br><span class="muted">{{ run.id }}</span></td>
+                            <td>{{ run.machine_code }} · {{ run.scenario_label }}<br><span class="muted">{{ run.fault_sensor_label or 'tanpa sensor gangguan' }} · {{ run.severity_label }} · {{ run.duration_minutes }} menit</span><br><span class="muted">{{ run.started_at|dt }} – {{ run.ended_at|dt }}</span>
+                            {% if run.fault_started_at %}<br><span class="muted">Gangguan mulai {{ run.fault_started_at|dt }}</span>{% endif %}</td>
+                            <td class="num">{{ run.seed }}<br><span class="muted">{{ run.sample_count }} titik</span></td>
+                            <td class="num">{{ (run.metrics.precision_pct|string + '%') if run.metrics.precision_pct is not none else '—' }}</td>
+                            <td class="num">{{ (run.metrics.recall_pct|string + '%') if run.metrics.recall_pct is not none else '—' }}</td>
+                            <td class="num">{{ (run.metrics.specificity_pct|string + '%') if run.metrics.specificity_pct is not none else '—' }}</td>
+                            <td class="num">
+                                {% if run.scenario_id == 'normal' %}Tidak ada gangguan berlabel
+                                {% else %}{{ 'Terdeteksi' if run.metrics.detected else 'Tidak terdeteksi' }}{% endif %}<br>
+                                <span class="muted">{{ run.metrics.detection_latency_minutes|string + ' mnt' if run.metrics.detection_latency_minutes is not none else 'jeda —' }}</span>
+                                <br><span class="muted">{{ run.metrics.detection_method }}</span>
+                            </td>
+                            <td class="num">{{ run.metrics.false_alarm_episodes }} episode<br><span class="muted">{{ run.metrics.false_alarms_per_hour|num(2) }}/jam</span></td>
+                            <td class="num">
+                                {% if run.metrics.work_orders_created %}
+                                    <a href="/work-orders?status=all&amp;simulation_run_id={{ run.id }}">{{ run.metrics.work_orders_created }} · lihat</a>
+                                {% else %}
+                                    0
+                                {% endif %}
+                            </td>
+                            <td>
+                                <form method="post" action="/simulation/experiments/{{ run.id }}/repeat">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <button class="btn btn-quiet btn-sm" type="submit">Ulangi</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="10">Belum ada eksperimen. Pilih mesin dan skenario di atas untuk membuat hasil evaluasi pertama.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block page_scripts %}
+<script nonce="{{ request.state.csp_nonce }}">
+    (function () {
+        var select = document.getElementById('experiment-scenario');
+        var description = document.getElementById('experiment-scenario-description');
+        var details = {{ scenarios|tojson }};
+        if (!select || !description) return;
+        select.addEventListener('change', function () {
+            description.textContent = details[select.value].description;
+        });
+        var start = document.getElementById('experiment-start');
+        var end = document.getElementById('experiment-end');
+        var severity = document.getElementById('experiment-severity');
+        var submit = select.form ? select.form.querySelector('button[type="submit"]') : null;
+        function validateRange() {
+            if (!start || !end || !submit) return;
+            var minutes = (Date.parse(end.value) - Date.parse(start.value)) / 60000;
+            submit.disabled = !Number.isFinite(minutes) || [30, 60, 120].indexOf(minutes) === -1;
+        }
+        function updateSeverity() {
+            if (severity) severity.disabled = select.value === 'normal';
+        }
+        updateSeverity();
+        select.addEventListener('change', updateSeverity);
+        if (start && end) {
+            start.addEventListener('change', validateRange);
+            end.addEventListener('change', validateRange);
+            validateRange();
+        }
+    }());
+</script>
+{% endblock %}

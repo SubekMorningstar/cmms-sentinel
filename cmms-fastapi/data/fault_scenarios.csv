@@ -1,0 +1,7 @@
+machine_code,fault_mode,severity,start_utc,end_utc,affected_sensors,description
+CNC-01,Degradasi bearing spindle,critical,2026-10-23T08:05:00Z,2026-10-26T08:05:00Z,"vibration,temperature,sound","Kenaikan progresif getaran, suhu, dan kebisingan akibat keausan bearing spindle."
+PMP-02,Kavitasi & misalignment pompa,critical,2026-10-25T02:05:00Z,2026-10-26T08:05:00Z,"vibration,temperature,sound",Kavitasi dan ketidaksejajaran kopling meningkatkan getaran serta suhu pompa.
+CMP-03,Degradasi sistem pendinginan,warning,2026-10-21T08:05:00Z,2026-10-21T12:05:00Z,temperature,Suhu buang kompresor meningkat akibat fouling pada cooler.
+CNV-04,Kontaminasi bearing conveyor,warning,2026-10-18T08:05:00Z,2026-10-18T13:05:00Z,"vibration,sound",Getaran pulley meningkat akibat kontaminasi dan pelumasan berlebih.
+GRD-05,Overload motor grinding,warning,2026-10-16T08:05:00Z,2026-10-16T12:05:00Z,"power,temperature",Beban motor meningkat saat siklus dressing dan pemakanan material keras.
+PMP-02,Misalignment transient,warning,2026-10-14T08:05:00Z,2026-10-14T14:05:00Z,vibration,Misalignment sementara setelah pekerjaan penyambungan pipa.

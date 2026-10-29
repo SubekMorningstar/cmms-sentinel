@@ -1,0 +1,177 @@
+{% extends "layouts/app.html" %}
+{% block title %}Pusat Peringatan{% endblock %}
+
+{% block page_description %}
+    <p class="page-description">
+        Pantau peringatan sensor, lakukan acknowledge, dan buat work order tindak lanjut.
+    </p>
+{% endblock %}
+
+{% block page_actions %}
+    <a href="/work-orders/new" class="btn btn-primary btn-sm"><i class="ti-plus" aria-hidden="true"></i> Work order baru</a>
+{% endblock %}
+
+{% block content %}
+<section class="summary-grid" aria-label="Ringkasan alert">
+    <article class="summary-card is-danger">
+        <span class="summary-icon"><i class="ti-bell" aria-hidden="true"></i></span>
+        <div class="summary-copy"><strong>{{ summary.active }}</strong><span>Alert aktif</span></div>
+    </article>
+    <article class="summary-card is-danger">
+        <span class="summary-icon"><i class="ti-alert" aria-hidden="true"></i></span>
+        <div class="summary-copy"><strong>{{ summary.active - summary.acknowledged }}</strong><span>Belum diketahui</span></div>
+    </article>
+    <article class="summary-card is-warning">
+        <span class="summary-icon"><i class="ti-eye" aria-hidden="true"></i></span>
+        <div class="summary-copy"><strong>{{ summary.acknowledged }}</strong><span>Diketahui</span></div>
+    </article>
+    <article class="summary-card is-danger">
+        <span class="summary-icon"><i class="ti-flag" aria-hidden="true"></i></span>
+        <div class="summary-copy"><strong>{{ summary.critical }}</strong><span>Level kritis</span></div>
+    </article>
+    <article class="summary-card is-good">
+        <span class="summary-icon"><i class="ti-check-box" aria-hidden="true"></i></span>
+        <div class="summary-copy"><strong>{{ summary.resolved_24h }}</strong><span>Selesai 24 jam</span></div>
+    </article>
+</section>
+
+<section class="filter-bar" aria-label="Filter alert">
+    <form method="get" action="/alerts" class="filter-form">
+        <div class="filter-field filter-grow">
+            <label for="alert-q">Cari alert</label>
+            <div class="search-field">
+                <i class="ti-search" aria-hidden="true"></i>
+                <input type="search" class="form-control" id="alert-q" name="q" value="{{ filters.q }}"
+                       placeholder="Pesan, kode mesin, atau nama mesin" maxlength="80">
+            </div>
+        </div>
+        <div class="filter-field filter-compact">
+            <label for="alert-status">Status</label>
+            <select class="form-control" id="alert-status" name="status">
+                <option value="active" {{ 'selected' if filters.status == 'active' else '' }}>Aktif</option>
+                <option value="open" {{ 'selected' if filters.status == 'open' else '' }}>Terbuka</option>
+                <option value="acknowledged" {{ 'selected' if filters.status == 'acknowledged' else '' }}>Diketahui</option>
+                <option value="resolved" {{ 'selected' if filters.status == 'resolved' else '' }}>Selesai</option>
+            </select>
+        </div>
+        <div class="filter-field filter-compact">
+            <label for="alert-level">Level</label>
+            <select class="form-control" id="alert-level" name="level">
+                <option value="">Semua level</option>
+                {% for key, label in status_maps.alert_level.items() %}
+                    <option value="{{ key }}" {{ 'selected' if filters.level == key else '' }}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-field filter-compact">
+            <label for="alert-sensor">Sensor</label>
+            <select class="form-control" id="alert-sensor" name="sensor">
+                <option value="">Semua sensor</option>
+                {% for sensor in sensor_order %}
+                    <option value="{{ sensor }}" {{ 'selected' if filters.sensor == sensor else '' }}>{{ sensors[sensor].label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-field">
+            <label for="alert-machine">Mesin</label>
+            <select class="form-control" id="alert-machine" name="machine">
+                <option value="">Semua mesin</option>
+                {% for item in machines %}
+                    <option value="{{ item.code }}" {{ 'selected' if filters.machine == item.code else '' }}>{{ item.code }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-actions">
+            <button type="submit" class="btn btn-primary btn-sm"><i class="ti-filter" aria-hidden="true"></i> Filter</button>
+            <a href="/alerts" class="btn btn-quiet btn-sm">Reset</a>
+        </div>
+    </form>
+    <div class="filter-summary">
+        <span><strong>{{ pagination.total }}</strong> alert ditemukan</span>
+        <span class="muted">Halaman {{ pagination.page }} dari {{ pagination.pages }}</span>
+    </div>
+</section>
+
+<section class="card" aria-label="Daftar alert">
+    <div class="alert-list">
+        {% for alert in items %}
+            {% set is_resolved = alert.status == 'resolved' %}
+            <article class="alert-row {{ 'is-resolved' if is_resolved else ('is-critical' if alert.level == 'critical' else 'is-warning') }}">
+                <span class="alert-icon">
+                    <i class="fa {{ 'fa-check-circle' if is_resolved else ('fa-exclamation-circle' if alert.level == 'critical' else 'fa-exclamation-triangle') }}" aria-hidden="true"></i>
+                </span>
+                <div class="alert-main">
+                    <div class="alert-title">
+                        <a href="/alerts/{{ alert.id }}">{{ alert.machine_code }} · {{ sensors[alert.sensor].label if alert.sensor in sensors else alert.sensor }}</a>
+                        <span class="level-tag {{ alert.level }}">{{ status_maps.alert_level.get(alert.level, alert.level) }}</span>
+                        <span class="state-pill is-{{ alert.status }}">{{ status_maps.alert_status.get(alert.status, alert.status) }}</span>
+                        {% if alert.source in ['simulator', 'dataset-seed'] %}<span class="source-tag">Data simulasi · {{ status_maps.source.get(alert.source, alert.source) }}</span>{% elif alert.source %}<span class="source-tag">{{ status_maps.source.get(alert.source, alert.source) }}</span>{% endif %}
+                        {% if alert.scenario_id %}<span class="badge badge-soft-info">Skenario {{ alert.scenario_id|replace('-', ' ') }}</span>{% endif %}
+                        {% if alert.wo_id %}<span class="badge badge-soft-info"><i class="ti-clipboard" aria-hidden="true"></i> WO tertaut</span>{% endif %}
+                    </div>
+                    <p class="alert-message">{{ alert.message }}</p>
+                    <div class="alert-meta">
+                        <span><i class="ti-harddrives" aria-hidden="true"></i> {{ alert.machine_name }}</span>
+                        <span><i class="ti-time" aria-hidden="true"></i> {{ alert.last_seen|relative }}</span>
+                        <span><i class="ti-flag" aria-hidden="true"></i> Pertama {{ alert.first_seen|dt }}</span>
+                        <span><i class="ti-reload" aria-hidden="true"></i> {{ alert.readings_seen|default(1) }} pembacaan dalam satu episode</span>
+                        {% if alert.acknowledged_by_name %}<span><i class="ti-eye" aria-hidden="true"></i> {{ alert.acknowledged_by_name }}</span>{% endif %}
+                    </div>
+                </div>
+                <div class="alert-side">
+                    <div class="alert-value">
+                        <strong>{{ alert.value|num(1) }}</strong>
+                        <span>{{ alert.unit }}</span>
+                        <small>Batas {{ alert.threshold_value|num(1) }}</small>
+                    </div>
+                    <div class="alert-actions">
+                        <a href="/alerts/{{ alert.id }}" class="btn btn-quiet btn-sm">Detail</a>
+                    </div>
+                </div>
+            </article>
+        {% else %}
+            <div class="empty-state">
+                <span class="empty-icon"><i class="ti-check-box" aria-hidden="true"></i></span>
+                <h3>Tidak ada alert</h3>
+                <p>Belum ada peringatan yang sesuai dengan filter, atau seluruh kondisi mesin sedang normal.</p>
+                <div class="empty-actions"><a href="/alerts" class="btn btn-outline-secondary btn-sm">Reset filter</a></div>
+            </div>
+        {% endfor %}
+    </div>
+</section>
+
+{% if pagination.pages > 1 %}
+    <div class="pagination-bar card">
+        <span class="pagination-info">
+            Menampilkan <strong>{{ items|length }}</strong> dari <strong>{{ pagination.total }}</strong> alert
+        </span>
+        <nav aria-label="Navigasi halaman alert">
+            <ul class="pagination">
+                <li class="page-item {{ 'disabled' if pagination.page <= 1 else '' }}">
+                    {% if pagination.page <= 1 %}
+                        <span class="page-link" aria-hidden="true"><i class="ti-angle-left"></i></span>
+                    {% else %}
+                        <a class="page-link" href="{{ page_prefix }}page={{ pagination.page - 1 }}" aria-label="Halaman sebelumnya"><i class="ti-angle-left"></i></a>
+                    {% endif %}
+                </li>
+                {% for number in pagination.numbers %}
+                    {% if number %}
+                        <li class="page-item {{ 'active' if number == pagination.page else '' }}">
+                            <a class="page-link" href="{{ page_prefix }}page={{ number }}" {{ 'aria-current="page"' if number == pagination.page else '' }}>{{ number }}</a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled"><span class="page-link">…</span></li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {{ 'disabled' if pagination.page >= pagination.pages else '' }}">
+                    {% if pagination.page >= pagination.pages %}
+                        <span class="page-link" aria-hidden="true"><i class="ti-angle-right"></i></span>
+                    {% else %}
+                        <a class="page-link" href="{{ page_prefix }}page={{ pagination.page + 1 }}" aria-label="Halaman berikutnya"><i class="ti-angle-right"></i></a>
+                    {% endif %}
+                </li>
+            </ul>
+        </nav>
+    </div>
+{% endif %}
+{% endblock %}

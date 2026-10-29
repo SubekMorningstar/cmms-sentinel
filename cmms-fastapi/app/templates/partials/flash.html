@@ -1,0 +1,15 @@
+{% if flashes %}
+    <div class="flash-stack">
+        {% for flash in flashes %}
+            {% set tone = 'danger' if flash.tone == 'error' else flash.tone %}
+            {% set icon = {'success': 'ti-check-box', 'danger': 'ti-alert', 'warning': 'ti-alert', 'info': 'ti-info-alt'}.get(tone, 'ti-info-alt') %}
+            <div class="alert alert-{{ tone }} flash" role="{{ 'alert' if tone in ['danger', 'warning'] else 'status' }}"{% if tone in ['success', 'info'] %} data-autohide="true"{% endif %}>
+                <i class="{{ icon }}" aria-hidden="true"></i>
+                <span class="flash-message">{{ flash.message }}</span>
+                <button type="button" class="flash-close" aria-label="Tutup notifikasi">
+                    <i class="ti-close" aria-hidden="true"></i>
+                </button>
+            </div>
+        {% endfor %}
+    </div>
+{% endif %}
